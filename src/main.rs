@@ -1,6 +1,8 @@
 extern crate packet_schema;
 extern crate failure;
 
+mod writer;
+
 fn main() -> Result<(), failure::Error> {
     use std::fs::File;
     let file    = File::open("test.xml")?;

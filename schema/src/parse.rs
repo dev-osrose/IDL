@@ -23,7 +23,7 @@ fn packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
     use self::PacketContent::*;
     use self::Either::*;
     for item in r.map(&[
-        ("includeXml", &|r, attrs| Ok(A(includeXml(r, attrs)?))),
+        ("includeXml", &|r, attrs| Ok(A(include_xml(r, attrs)?))),
         ("include", &|r, attrs| Ok(A(include(r, attrs)?))),
         ("element", &|r, attrs| Ok(A(Element(element(r, attrs)?)))),
         ("simpleType", &|r, attrs| Ok(A(SimpleType(simple_type(r, attrs)?)))),
@@ -113,7 +113,7 @@ fn include(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
     Ok(PacketContent::Include(path))
 }
 
-fn includeXml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
+fn include_xml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
     let path = attrs.get("location")?;
     Ok(PacketContent::IncludeXml(path))
 }
@@ -206,7 +206,7 @@ fn documentation(r: &mut Reader, _: Attributes) -> Result<String> {
     r.read_text()
 }
 
-fn anon_complex_type (r: &mut Reader, attrs: Attributes) -> Result<AnonComplexType> {
+fn anon_complex_type (r: &mut Reader, _: Attributes) -> Result<AnonComplexType> {
     let (content, doc) = complex_content(r)?;
     let mut cot = AnonComplexType::new(content);
     if let Some(doc) = doc {

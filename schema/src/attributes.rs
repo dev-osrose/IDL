@@ -40,6 +40,7 @@ impl Attributes {
         self.attrs.get(&name.to_string()).map(|val| val.clone())
     }
 
+    #[allow(dead_code)]
     pub fn get_or<P: Parse>(&self, name: &str, default: P) -> P {
         match self.get::<P>(name) {
             Ok(val) => val,
