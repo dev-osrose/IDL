@@ -1,0 +1,44 @@
+<packet ePacketType = "PAKWC_TEST">
+    <documentation>Documentation for PAKWC_TEST</documentation>
+
+    <include path = "test.h"/>
+
+    <element name = "data" type = "uint8_t" default = "0" occurs = "3">
+        <documentation>Documentation for the field "data"</documentation>
+    </element>
+
+    <element name = "otherData" type = "uint16_t" occurs = "unbounded"/>
+
+    <element name = "myEnum" type = "MyEnum"/>
+
+    <element name = "password" type = "Password"/>
+
+    <simpleType name = "MyEnum">
+        <documentation>Documentation for "MyEnum"</documentation>
+        <restriction base = "uint8_t">
+            <enumeration value = "TEST_ON" id = "0"/>
+            <enumeration value = "TEST_OFF"/>
+        </restriction>
+    </simpleType>
+    
+    <simpleType name = "Password">
+        <restriction base = "string">
+            <length value = "32"/>
+        </restriction>
+    </simpleType>
+
+    <complexType name = "Character">
+        <sequence>
+            <element name = "name" type = "string"/>
+            <element name = "level" type = "uint8_t"/>
+        </sequence>
+    </complexType>
+
+    <element name = "test">
+        <complexType>
+            <sequence>
+                <element name = "pouet" type = "char"/>
+            </sequence>
+        </complexType>
+    </element>
+</packet>
