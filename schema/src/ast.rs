@@ -39,8 +39,8 @@ pub struct Restriction {
 pub enum RestrictionContent {
     Enumeration(Enumeration),
     Length(u32),
-    MinValue(i64),
-    MaxValue(i64)
+    MinValue(String),
+    MaxValue(String)
 }
 
 #[derive(Debug, PartialEq, Eq, Ord)]
@@ -70,7 +70,7 @@ pub enum ComplexTypeContent {
     Empty
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Occurs {
     Num(u32),
     Unbounded
