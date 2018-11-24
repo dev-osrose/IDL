@@ -2,12 +2,14 @@
 pub struct Packet {
     type_: String,
     contents: Vec<PacketContent>,
-    doc: Option<String>
+    doc: Option<String>,
+    class_name: String,
+    filename: String
 }
 
 #[derive(Debug)]
 pub enum PacketContent {
-    Include(String),
+    Include(String, bool),
     Element(Element),
     Simple(SimpleType),
     Complex(ComplexType)
@@ -52,7 +54,8 @@ pub struct Element {
     doc: Option<String>,
     occurs: Option<Occurs>,
     init: ElementInitValue,
-    anonymous: bool
+    anonymous: bool,
+    reference: bool
 }
 
 #[derive(Debug)]
@@ -94,15 +97,42 @@ pub use ::packet_schema::ast::ElementInitValue;
 impl Packet {
     pub fn new(type_: String
                , doc: Option<String>) -> Self {
+        use ::heck::*;
+        let name = type_.clone().to_camel_case();
+        let (class_name, filename) = if type_.starts_with("Isc") {
+            (name.clone(),
+             name.clone().to_snake_case())
+        } else {
+            if type_.starts_with("Pakcs") {
+                let name = "Cli".to_string() + &name[5..];
+                (name.clone(),
+                 name.clone().to_snake_case())
+            } else {
+                let name = "Srv".to_string() + &name[5..];
+                (name.clone(),
+                 name.clone().to_snake_case())
+            }
+        };
+
         Packet{
             type_,
             contents: Vec::new(),
-            doc: doc
+            doc: doc,
+            class_name: class_name,
+            filename: filename
         }
     }
 
     pub fn add_content(&mut self, content: PacketContent) {
         self.contents.push(content);
+    }
+
+    pub fn class_name(&self) -> &String {
+        &self.class_name
+    }
+
+    pub fn filename(&self) -> &String {
+        &self.filename
     }
 
     pub fn type_(&self) -> &String {
@@ -214,13 +244,18 @@ impl Element {
                , init: ElementInitValue
                , occurs: Option<Occurs>
                , doc: Option<String>
-               , anonymous: bool) -> Self {
+               , anonymous: bool
+               , reference: bool) -> Self {
         Element{ name, init, type_, id, occurs, doc
-                 , anonymous }
+                 , anonymous, reference }
     }
     
     pub fn name(&self) -> &String {
         &self.name
+    }
+
+    pub fn reference(&self) -> bool {
+        self.reference
     }
 
     pub fn id(&self) -> u32 {

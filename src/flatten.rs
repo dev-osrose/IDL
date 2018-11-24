@@ -72,8 +72,8 @@ fn flatten_(search_path: &str, packet: &ast::Packet, ctx: &mut Context) -> Resul
     for content in packet.contents() {
         use flat_ast::PacketContent::*;
         match content {
-            ast::PacketContent::Include(ref path) => {
-                ctx.add_content(Include(path.clone()));
+            ast::PacketContent::Include(ref path, system) => {
+                ctx.add_content(Include(path.clone(), *system));
             },
             ast::PacketContent::IncludeXml(ref location) => {
                 let filenm = format!("{}/{}", search_path, location);
@@ -239,7 +239,7 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
 
     let complex = flat_ast::ComplexType::new(name.clone(), content, doc.clone(), true);
     ctx.add_content(flat_ast::PacketContent::Complex(complex));
-    flat_ast::Element::new(name.clone(), name.clone(), id, flat_ast::ElementInitValue::None, occurs, doc, true)
+    flat_ast::Element::new(name.clone(), name.clone(), id, flat_ast::ElementInitValue::None, occurs, doc, true, true)
 }
 
 fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast::Element {
@@ -264,5 +264,5 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
             (elem_name, type_name, true)
         }
     };
-    flat_ast::Element::new(name, type_, id, init, elem.occurs().clone(), elem.doc().clone(), anonymous)
+    flat_ast::Element::new(name, type_, id, init, elem.occurs().clone(), elem.doc().clone(), anonymous, elem.reference())
 }

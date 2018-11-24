@@ -6,3 +6,4 @@ authors = ["Adrien Vaillant <availlant2@bloomberg.net>"]
 [dependencies]
 packet_schema = { path = "./schema" }
 failure = "0.1"
+heck = "0.3.0"

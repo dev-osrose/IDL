@@ -110,7 +110,8 @@ fn complex_type(r: &mut Reader, attrs: Attributes) -> Result<ComplexType> {
 
 fn include(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
     let path = attrs.get("path")?;
-    Ok(PacketContent::Include(path))
+    let system = attrs.get_or("system", false);
+    Ok(PacketContent::Include(path, system))
 }
 
 fn include_xml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
@@ -173,6 +174,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let name = attrs.get_opt("name");
     let default = attrs.get_opt("default");
     let occurs = attrs.parse_opt("occurs")?;
+    let reference = attrs.get_or("ref", false);
     let mut doc = None;
     let init = match default {
         Some(def) => ElementInitValue::Default(def),
@@ -194,7 +196,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
             }
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs);
+        let mut elem = Element::new(type_, init, occurs, reference);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }
@@ -203,7 +205,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
 }
 
 fn documentation(r: &mut Reader, _: Attributes) -> Result<String> {
-    r.read_text()
+    Ok(r.read_text()?.trim().to_string())
 }
 
 fn anon_complex_type (r: &mut Reader, _: Attributes) -> Result<AnonComplexType> {

@@ -10,7 +10,7 @@ pub struct Packet {
 #[derive(Debug)]
 pub enum PacketContent {
     IncludeXml(String),
-    Include(String),
+    Include(String, bool),
     SimpleType(SimpleType),
     ComplexType(ComplexType),
     Element(Element)
@@ -108,7 +108,8 @@ pub struct Element {
     type_: ElementType,
     init: ElementInitValue,
     doc: Option<String>,
-    occurs: Option<Occurs>
+    occurs: Option<Occurs>,
+    reference: bool
 }
 
 #[derive(Debug)]
@@ -262,13 +263,18 @@ impl Choice {
 }
 
 impl Element {
-    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>) -> Self {
+    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, reference: bool) -> Self {
         Element {
             type_: type_,
             occurs: occurs,
             doc: None,
-            init: init
+            init: init,
+            reference: reference
         }
+    }
+
+    pub fn reference(&self) -> bool {
+        self.reference
     }
 
     pub fn type_(&self) -> &ElementType {
