@@ -24,10 +24,21 @@ class SrvLoginReq : public CRosePacket {
         std::string& get_username() const;
         
         struct Password {
+            explicit Password(std::string);
+            
+            operator std::string() const;
+            bool isValid() const;
+            
+            private:
+                std::string password;
+                bool is_valid;
         };
         
         
-        static SrvLoginReq create(Password, std::string,);
+        static SrvLoginReq create(Password, std::string);
+    
+    protected:
+        virtual void pack(CRosePolicyBase&) const override;
     
     private:
         Password password;

@@ -1,5 +1,6 @@
 use ::flat_ast::*;
 use std::io::{Result, Write};
+use ::heck::*;
 
 #[macro_use]
 mod macros {
@@ -93,6 +94,11 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
 
         self.dedent();
         cg!(self);
+        cg!(self, "protected:");
+        self.indent();
+        cg!(self, "virtual void pack(CRosePolicyBase&) const override;");
+        self.dedent();
+        cg!(self);
         cg!(self, "private:");
         self.indent();
 
@@ -170,7 +176,7 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
                 _ => "".to_string()
             }
         }).collect::<String>();
-        let args = &args[..args.len() - 1];
+        let args = &args[..args.len() - 2];
         cg!(self, "static {} create({});", packet.class_name(), args);
         Ok(())
     }
@@ -196,10 +202,77 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         } else {
             cg!(self, "struct {} {{", name);
             self.indent();
+            cg!(self, "explicit {}({});", name, base);
+            cg!(self);
+            cg!(self, "operator {}() const;", base);
+            cg!(self, "bool isValid() const;");
+            cg!(self);
+            cg!(self, "private:");
+            self.indent();
+            cg!(self, "{} {};", base, name.to_string().to_snake_case());
+            cg!(self, "bool is_valid;");
+            self.dedent();
         }
 
         self.dedent();
         cg!(self, "}};");
+        Ok(())
+    }
+}
+
+pub (super) struct CodeSourceGenerator<'a, W: Write + 'a> {
+    writer: &'a mut ::writer::Writer<W>
+}
+
+impl<'a, W: Write> CodeSourceGenerator<'a, W> {
+    pub fn new(writer: &'a mut ::writer::Writer<W>) -> Self {
+        Self {
+            writer
+        }
+    }
+
+    fn indent(&mut self) {
+        self.writer.indent();
+    }
+
+    fn dedent(&mut self) {
+        self.writer.dedent();
+    }
+
+    fn write(&mut self, val: impl AsRef<str>) -> Result<&mut Self> {
+        self.writer.write(val)?;
+        Ok(self)
+    }
+
+    pub fn generate(&mut self, packet: &Packet) -> Result<()> {
+        Ok(())
+    }
+
+    fn complex_type(&mut self, complex: &ComplexType) -> Result<()> {
+        Ok(())
+    }
+
+    fn simple_type(&mut self, simple: &SimpleType) -> Result<()> {
+        Ok(())
+    }
+
+    fn element(&mut self, elem: &Element) -> Result<()> {
+        Ok(())
+    }
+
+    fn elem_setter(&mut self, elem: &Element) -> Result<()> {
+        Ok(())
+    }
+
+    fn elem_getter(&mut self, elem: &Element) -> Result<()> {
+        Ok(())
+    }
+
+    fn create(&mut self, packet: &Packet) -> Result<()> {
+        Ok(())
+    }
+
+    fn restrict(&mut self, restrict: &Restriction, name: &str) -> Result<()> {
         Ok(())
     }
 }
