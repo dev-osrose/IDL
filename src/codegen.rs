@@ -134,18 +134,12 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
     }
 
     fn simple_type(&mut self, simple: &SimpleType) -> Result<()> {
+        cg!(self);
         self.doc(simple.doc())?;
-        cg!(self, "struct {} {{", simple.name());
-        self.indent();
         for content in simple.contents() {
             match content {
-                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name())?,
-                _ => {}
-            }
+                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name())?            }
         }
-        self.dedent();
-        cg!(self, "}};");
-        cg!(self);
         Ok(())
     }
 
@@ -188,7 +182,24 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
             _ => false
         }).is_some();
         self.doc(restrict.doc())?;
-        
+        let base = restrict.base();
+
+        if is_enum {
+            cg!(self, "enum {} : {} {{", name, base);
+            self.indent();
+            for content in restrict.contents() {
+                if let Enumeration(en) = content {
+                    self.doc(en.doc())?;
+                    cg!(self, "{} = {},", en.value(), en.id());
+                }
+            }
+        } else {
+            cg!(self, "struct {} {{", name);
+            self.indent();
+        }
+
+        self.dedent();
+        cg!(self, "}};");
         Ok(())
     }
 }

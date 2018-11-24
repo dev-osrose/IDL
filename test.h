@@ -23,6 +23,9 @@ class SrvLoginReq : public CRosePacket {
         void set_username(std::string&);
         std::string& get_username() const;
         
+        struct Password {
+        };
+        
         
         static SrvLoginReq create(Password, std::string,);
     
