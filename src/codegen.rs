@@ -78,8 +78,26 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Complex(ref complex) => self.complex_type(complex)?,
                 Simple(ref simple) => self.simple_type(simple)?,
+                _ => {}
+            };
+        }
+
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Complex(ref complex) => self.complex_type(complex)?,
+                _ => {}
+            };
+        }
+
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
                 Element(ref elem) => {
                     self.elem_setter(elem)?;
                     self.elem_getter(elem)?;
@@ -96,7 +114,7 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         cg!(self);
         cg!(self, "protected:");
         self.indent();
-        cg!(self, "virtual void pack(CRosePolicyBase&) const override;");
+        cg!(self, "virtual void pack(CRoseBasePolicy&) const override;");
         self.dedent();
         cg!(self);
         cg!(self, "private:");
@@ -202,6 +220,7 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         } else {
             cg!(self, "struct {} {{", name);
             self.indent();
+            cg!(self, "explicit {}();", name);
             cg!(self, "explicit {}({});", name, base);
             cg!(self);
             cg!(self, "operator {}() const;", base);
@@ -245,6 +264,54 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
+        cg!(self, r#"#include "{}.h""#, packet.filename());
+        cg!(self);
+        cg!(self, "using namespace RoseCommon::Packet;");
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Simple(simple) => self.simple_type(simple)?,
+                _ => {}
+            }
+        }
+
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Complex(complex) => self.complex_type(complex)?,
+                _ => {}
+            }
+        }
+
+        cg!(self);
+        cg!(self, "{0}::{0}() : CRosePacket(ePacketType::{1}) {{}}", packet.class_name(), packet.type_());
+        cg!(self);
+        cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
+        self.indent();
+        // TODO: finish constructor
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Element(elem) => {
+                    self.elem_setter(elem)?;
+                    self.elem_getter(elem)?;
+                },
+                _ => {}
+            }
+        }
+
+        self.create(packet)?;
+        cg!(self);
+        self.pack(packet)?;
+        cg!(self);
         Ok(())
     }
 
@@ -269,6 +336,27 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn create(&mut self, packet: &Packet) -> Result<()> {
+        let args = packet.contents().iter().map(|elem| {
+            use self::PacketContent::*;
+            match elem {
+                Element(ref e) => e.type_().clone() + ", ",
+                _ => "".to_string()
+            }
+        }).collect::<String>();
+        let args = &args[..args.len() - 2];
+        cg!(self, "{0} {0}::create({1}) {{", packet.class_name(), args);
+        self.indent();
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn pack(&mut self, packet: &Packet) -> Result<()> {
+        cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
+        self.indent();
+        // TODO: finish pack
+        self.dedent();
+        cg!(self, "}}");
         Ok(())
     }
 
