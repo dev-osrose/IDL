@@ -94,6 +94,17 @@ pub struct Enumeration {
 
 pub use ::packet_schema::ast::ElementInitValue;
 
+impl PacketContent {
+    #[inline]
+    pub fn type_from_name(content: &PacketContent) -> Option<String> {
+        match content {
+            PacketContent::Simple(s) => Some(s.name().to_owned()),
+            PacketContent::Complex(c) => Some(c.name().to_owned()),
+            _ => None
+        }
+    }
+}
+
 impl Packet {
     pub fn new(type_: String
                , doc: Option<String>) -> Self {
@@ -285,7 +296,8 @@ impl Element {
 
 impl SimpleType {
     pub fn new(name: String, doc: Option<String>) -> Self {
-        SimpleType{ name, contents: Vec::new(), doc }
+        use heck::CamelCase;
+        SimpleType{ name: name.to_camel_case(), contents: Vec::new(), doc }
     }
 
     pub fn add_content(&mut self, content: SimpleTypeContent) {

@@ -5,7 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "./",
-                "../osiROSE-new/src/**"
+                "../osiROSE-new/src/**",
+                "C:/Users/drago/Desktop/osIROSE-new/src/**"
             ],
             "defines": [
                 "_DEBUG",

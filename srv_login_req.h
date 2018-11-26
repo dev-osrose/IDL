@@ -19,12 +19,18 @@ class SrvLoginReq : public CRosePacket {
         ~SrvLoginReq() = default;
         
         
-        struct Password {
+        struct Password : public ISerialize {
             explicit Password();
             explicit Password(std::string);
+            Password(const Password&) = default;
+            Password(Password&&) = default;
+            virtual ~Password() = default;
             
-            operator std::string() const;
-            bool isValid() const;
+            operator std::string() const { return password; }
+            bool isValid() const { return is_valid; }
+            
+            virtual bool read(CRoseReader&) override;
+            virtual bool write(CRoseBasePolicy&) const override;
             
             private:
                 std::string password;
