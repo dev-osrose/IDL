@@ -55,7 +55,8 @@ pub struct Element {
     occurs: Option<Occurs>,
     init: ElementInitValue,
     anonymous: bool,
-    reference: bool
+    reference: bool,
+    enum_type: Option<String>
 }
 
 #[derive(Debug)]
@@ -101,6 +102,22 @@ impl PacketContent {
             PacketContent::Simple(s) => Some(s.name().to_owned()),
             PacketContent::Complex(c) => Some(c.name().to_owned()),
             _ => None
+        }
+    }
+
+    #[inline]
+    pub fn enum_type(content: &PacketContent) -> Option<String> {
+        match content {
+            PacketContent::Element(elem) => elem.enum_type().to_owned(),
+            _ => None
+        }
+    }
+
+    #[inline]
+    pub fn is_type(content: &PacketContent) -> bool {
+        match content {
+            PacketContent::Simple(_) | PacketContent::Complex(_) => true,
+            _ => false
         }
     }
 }
@@ -258,7 +275,7 @@ impl Element {
                , anonymous: bool
                , reference: bool) -> Self {
         Element{ name, init, type_, id, occurs, doc
-                 , anonymous, reference }
+                 , anonymous, reference, enum_type: None }
     }
     
     pub fn name(&self) -> &String {
@@ -291,6 +308,14 @@ impl Element {
 
     pub fn anonymous(&self) -> bool {
         self.anonymous
+    }
+
+    pub fn set_enum_type(&mut self, type_: String) {
+        self.enum_type = Some(type_);
+    }
+
+    pub fn enum_type(&self) -> &Option<String> {
+        &self.enum_type
     }
 }
 

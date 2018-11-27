@@ -5,10 +5,18 @@
     <include path = "string" system = "true" />
     <element name = "password" type = "Password" ref = "true" />
     <element name = "username" type = "std::string" ref = "true" />
+    <element name = "value" type = "Test" />
 
     <simpleType name = "Password">
         <restriction base = "std::string">
             <length value = "32" />
+        </restriction>
+    </simpleType>
+
+    <simpleType name = "Test">
+        <restriction base = "uint8_t">
+            <enumeration value = "ONE"/>
+            <enumeration value = "TWO"/>
         </restriction>
     </simpleType>
 </packet>

@@ -43,9 +43,12 @@ SrvLoginReq::SrvLoginReq(CRoseReader reader) : CRosePacket(reader) {
     if (!reader.get_string(username)) {
         return;
     }
+    if (!reader.get_uint8_t(value)) {
+        return;
+    }
 }
 
-SrvLoginReq SrvLoginReq::create(Password, std::string) {
+SrvLoginReq SrvLoginReq::create(Password, std::string, Test) {
 }
 
 void SrvLoginReq::pack(CRoseBasePolicy& writer) const {
@@ -53,6 +56,9 @@ void SrvLoginReq::pack(CRoseBasePolicy& writer) const {
         return;
     }
     if (!writer.set_string(username)) {
+        return;
+    }
+    if (!writer.set_iserialize(value)) {
         return;
     }
 }

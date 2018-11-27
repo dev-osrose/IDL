@@ -298,12 +298,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self);
         cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
         self.indent();
-        let iserialize = packet.contents().iter().filter_map(PacketContent::type_from_name).collect::<std::collections::HashSet<String>>();
+        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<std::collections::HashSet<String>>();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if iserialize.contains(&elem.name().to_owned().to_camel_case()) {
+                    let base = if let Some(ref enum_type) = elem.enum_type() {
+                        enum_type.clone()
+                    } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                         "iserialize".to_owned()
                     } else {
                         clean_base(elem.type_())
@@ -386,7 +388,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if iserialize.contains(&elem.name().to_owned().to_camel_case()) {
+                    let base = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                         "iserialize".to_owned()
                     } else {
                         clean_base(elem.type_())

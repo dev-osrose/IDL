@@ -56,7 +56,6 @@ impl<'a> Context<'a> {
 
 pub fn flatten(search_path: &str, p: &ast::Packet) -> Result<flat_ast::Packet, ::failure::Error> {
     let mut packet = flat_ast::Packet::new(p.type_().clone(), p.doc().clone());
-
     {
         let mut ctx = Context {
             packet: &mut packet,

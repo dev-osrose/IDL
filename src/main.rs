@@ -6,12 +6,14 @@ mod flat_ast;
 mod flatten;
 mod writer;
 mod codegen;
+mod graph_passes;
 
 fn main() -> Result<(), failure::Error> {
     use std::fs::File;
     let file = File::open("test.xml")?;
     let packet = packet_schema::Reader::load_packet(file)?;
     let packet = flatten::flatten("./", &packet)?;
+    let packet = graph_passes::run(packet)?;
     println!("{:?}", packet);
     let header_output = File::create(format!("{}.h", packet.filename()))?;
     let mut writer = writer::Writer::new(header_output);
