@@ -6,7 +6,7 @@ struct NodeId(usize);
 
 #[derive(Debug)]
 struct Edge {
-    to: NodeId,
+    to: NodeId
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -33,7 +33,8 @@ struct Node {
     color: Color,
     prune: bool,
     type_: NodeType,
-    type_name: String
+    type_name: String,
+    is_defined: bool
 }
 
 #[derive(Debug)]
@@ -83,7 +84,11 @@ impl Graph {
             type_name: type_name.to_owned(),
             edges: BTreeMap::new(),
             color: Color::White,
-            prune: true
+            prune: true,
+            is_defined: match type_ {
+                NodeType::TySimple | NodeType::TyEnum => true,
+                _ => false
+            }
         };
         self.nodes.push(node);
     }
@@ -223,6 +228,9 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 if let Ok(node) = node {
                     if graph.nodes[node.0].type_ == TyEnum {
                         e.set_enum_type(graph.nodes[node.0].type_name.clone());
+                    }
+                    if graph.nodes[node.0].is_defined == true {
+                        e.set_is_defined();
                     }
                 }
             },

@@ -24,6 +24,8 @@ class SrvLoginReq : public CRosePacket {
             explicit Password(std::string);
             Password(const Password&) = default;
             Password(Password&&) = default;
+            Password& operator=(const Password&) = default;
+            Password& operator=(Password&&) = default;
             virtual ~Password() = default;
             
             operator std::string() const { return password; }
@@ -37,21 +39,14 @@ class SrvLoginReq : public CRosePacket {
                 bool is_valid;
         };
         
-        enum Test : uint8_t {
-            ONE = 0,
-            TWO = 1,
-        };
+        
+        void set_password(const Password&);
+        const Password& get_password() const;
+        void set_username(const std::string&);
+        const std::string& get_username() const;
         
         
-        void set_password(Password&);
-        Password& get_password() const;
-        void set_username(std::string&);
-        std::string& get_username() const;
-        void set_value(Test);
-        Test get_value() const;
-        
-        
-        static SrvLoginReq create(Password, std::string, Test);
+        static SrvLoginReq create(const Password&, const std::string&);
     
     protected:
         virtual void pack(CRoseBasePolicy&) const override;
@@ -59,7 +54,6 @@ class SrvLoginReq : public CRosePacket {
     private:
         Password password;
         std::string username;
-        Test value;
 };
 
 }

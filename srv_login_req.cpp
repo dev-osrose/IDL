@@ -5,7 +5,7 @@ using namespace RoseCommon::Packet;
 SrvLoginReq::Password::Password() : is_valid(false) {}
 
 SrvLoginReq::Password::Password(std::string data) : password(data), is_valid(false) {
-    bool valid = false;
+    bool valid = true;
     if (password.size() > 32) {
         password.resize(32);
         valid &= true;
@@ -16,7 +16,7 @@ SrvLoginReq::Password::Password(std::string data) : password(data), is_valid(fal
 }
 
 bool SrvLoginReq::Password::read(CRoseReader& reader) {
-    bool valid = false;
+    bool valid = true;
     if (!reader.get_string(password, 32)) {
         return false;
     } else {
@@ -43,12 +43,29 @@ SrvLoginReq::SrvLoginReq(CRoseReader reader) : CRosePacket(reader) {
     if (!reader.get_string(username)) {
         return;
     }
-    if (!reader.get_uint8_t(value)) {
-        return;
-    }
 }
 
-SrvLoginReq SrvLoginReq::create(Password, std::string, Test) {
+void SrvLoginReq::set_password(const SrvLoginReq::Password& password) {
+    this->password = password;
+}
+
+const SrvLoginReq::Password& SrvLoginReq::get_password() const {
+    return password;
+}
+
+void SrvLoginReq::set_username(const std::string& username) {
+    this->username = username;
+}
+
+const std::string& SrvLoginReq::get_username() const {
+    return username;
+}
+
+SrvLoginReq SrvLoginReq::create(const SrvLoginReq::Password& password, const std::string& username) {
+    SrvLoginReq packet;
+    packet.set_password(password);
+    packet.set_username(username);
+    return packet;
 }
 
 void SrvLoginReq::pack(CRoseBasePolicy& writer) const {
@@ -56,9 +73,6 @@ void SrvLoginReq::pack(CRoseBasePolicy& writer) const {
         return;
     }
     if (!writer.set_string(username)) {
-        return;
-    }
-    if (!writer.set_iserialize(value)) {
         return;
     }
 }

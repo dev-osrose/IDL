@@ -177,8 +177,16 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let reference = attrs.get_or("ref", false);
     let mut doc = None;
     let init = match default {
-        Some(def) => ElementInitValue::Default(def),
-        None => ElementInitValue::None
+        Some(def) => {
+            if def == "create" {
+                ElementInitValue::Create
+            } else if def == "none" {
+                ElementInitValue::None
+            } else {
+                ElementInitValue::Default(def)
+            }
+        },
+        None => ElementInitValue::Create
     };
     let mut type_ = match (type_, name.clone()) {
         (Some(type_), Some(name)) => Some(ElementType::Named{name, type_}),

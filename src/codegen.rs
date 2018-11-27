@@ -176,13 +176,13 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
 
     fn elem_setter(&mut self, elem: &Element) -> Result<()> {
         let reference = if elem.reference() { "&" } else { "" };
-        cg!(self, "void set_{}({}{});", elem.name(), elem.type_(), reference);
+        cg!(self, "void set_{}(const {}{});", elem.name(), elem.type_(), reference);
         Ok(())
     }
 
     fn elem_getter(&mut self, elem: &Element) -> Result<()> {
         let reference = if elem.reference() { "&" } else { "" };
-        cg!(self, "{}{} get_{}() const;", elem.type_(), reference, elem.name());
+        cg!(self, "const {}{} get_{}() const;", elem.type_(), reference, elem.name());
         Ok(())
     }
 
@@ -190,7 +190,10 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         let args = packet.contents().iter().map(|elem| {
             use self::PacketContent::*;
             match elem {
-                Element(ref e) => e.type_().clone() + ", ",
+                Element(ref e) => match e.init() {
+                        self::ElementInitValue::Create => "const ".to_owned() + e.type_() + "&, ",
+                        _ => "".to_owned()
+                    },
                 _ => "".to_string()
             }
         }).collect::<String>();
@@ -224,6 +227,8 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
             cg!(self, "explicit {}({});", name, base);
             cg!(self, "{0}(const {0}&) = default;", name);
             cg!(self, "{0}({0}&&) = default;", name);
+            cg!(self, "{0}& operator=(const {0}&) = default;", name);
+            cg!(self, "{0}& operator=({0}&&) = default;", name);
             cg!(self, "virtual ~{}() = default;", name);
             cg!(self);
             cg!(self, "operator {}() const {{ return {}; }}", base, name.to_string().to_snake_case());
@@ -298,7 +303,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self);
         cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
         self.indent();
-        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<std::collections::HashSet<String>>();
+        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -310,7 +315,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         clean_base(elem.type_())
                     };
-                    self.write_if_else(&format!("!reader.get_{}({})", base, elem.name()), &[
+                    let name = if let Some(ref enum_type) = elem.enum_type() {
+                        format!("({}&){}", enum_type, elem.name())
+                    } else {
+                        elem.name().to_owned()
+                    };
+                    self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
                         "return;"
                     ], None)?;
                 },
@@ -325,8 +335,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    self.elem_setter(elem)?;
-                    self.elem_getter(elem)?;
+                    self.elem_setter(elem, packet.class_name())?;
+                    self.elem_getter(elem, packet.class_name())?;
                 },
                 _ => {}
             }
@@ -355,11 +365,35 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn elem_setter(&mut self, elem: &Element) -> Result<()> {
+    fn elem_setter(&mut self, elem: &Element, class_name: &str) -> Result<()> {
+        let reference = if elem.reference() { "&" } else { "" };
+        let base = if elem.is_defined() {
+            class_name.to_owned() + "::"
+        } else {
+            "".to_owned()
+        };
+        cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), base + elem.type_(), reference);
+        self.indent();
+        cg!(self, "this->{0} = {0};", elem.name());
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self);
         Ok(())
     }
 
-    fn elem_getter(&mut self, elem: &Element) -> Result<()> {
+    fn elem_getter(&mut self, elem: &Element, class_name: &str) -> Result<()> {
+        let reference = if elem.reference() { "&" } else { "" };
+        let base = if elem.is_defined() {
+            class_name.to_owned() + "::"
+        } else {
+            "".to_owned()
+        };
+        cg!(self, "const {2}{3} {0}::get_{1}() const {{", class_name, elem.name(), base + elem.type_(), reference);
+        self.indent();
+        cg!(self, "return {};", elem.name());
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self);
         Ok(())
     }
 
@@ -367,14 +401,34 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         let args = packet.contents().iter().map(|elem| {
             use self::PacketContent::*;
             match elem {
-                Element(ref e) => e.type_().clone() + ", ",
+                Element(ref e) => match e.init() {
+                    self::ElementInitValue::Create => {
+                        let base = if e.is_defined() {
+                            packet.class_name().to_owned() + "::"
+                        } else {
+                            "".to_owned()
+                        };
+                        "const ".to_owned() + &base + e.type_() + &format!("& {}, ", e.name())
+                    },
+                    _ => "".to_owned()
+                },
                 _ => "".to_string()
             }
         }).collect::<String>();
         let args = &args[..args.len() - 2];
         cg!(self, "{0} {0}::create({1}) {{", packet.class_name(), args);
         self.indent();
-        // TODO: finish create
+        cg!(self, "{} packet;", packet.class_name());
+        for content in packet.contents() {
+            match content {
+                self::PacketContent::Element(ref e) => match e.init() {
+                    self::ElementInitValue::Create => { cg!(self, "packet.set_{}({});", e.name(), e.name()); },
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        cg!(self, "return packet;");
         self.dedent();
         cg!(self, "}}");
         Ok(())
@@ -383,12 +437,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn pack(&mut self, packet: &Packet) -> Result<()> {
         cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
         self.indent();
-        let iserialize = packet.contents().iter().filter_map(PacketContent::type_from_name).collect::<std::collections::HashSet<String>>();
+        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                    let base = if let Some(ref enum_type) = elem.enum_type() {
+                        enum_type.clone()
+                    } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                         "iserialize".to_owned()
                     } else {
                         clean_base(elem.type_())
@@ -422,7 +478,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             let mut wrote = false;
             for content in restrict.contents() {
                 if !wrote {
-                    cg!(self, "bool valid = false;");
+                    cg!(self, "bool valid = true;");
                 }
                 wrote = true;
                 match content {
@@ -457,7 +513,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             let mut wrote = false;
             for content in restrict.contents() {
                 if !wrote {
-                    cg!(self, "bool valid = false;");
+                    cg!(self, "bool valid = true;");
                 }
                 wrote = true;
                 match content {

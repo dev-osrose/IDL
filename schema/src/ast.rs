@@ -100,6 +100,7 @@ pub struct Choice {
 #[derive(Debug, Clone)]
 pub enum ElementInitValue {
     Default(String),
+    Create,
     None
 }
 

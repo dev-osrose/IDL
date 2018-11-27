@@ -56,7 +56,8 @@ pub struct Element {
     init: ElementInitValue,
     anonymous: bool,
     reference: bool,
-    enum_type: Option<String>
+    enum_type: Option<String>,
+    is_defined: bool
 }
 
 #[derive(Debug)]
@@ -275,7 +276,8 @@ impl Element {
                , anonymous: bool
                , reference: bool) -> Self {
         Element{ name, init, type_, id, occurs, doc
-                 , anonymous, reference, enum_type: None }
+                 , anonymous, reference, enum_type: None,
+                 is_defined: false }
     }
     
     pub fn name(&self) -> &String {
@@ -316,6 +318,14 @@ impl Element {
 
     pub fn enum_type(&self) -> &Option<String> {
         &self.enum_type
+    }
+
+    pub fn set_is_defined(&mut self) {
+        self.is_defined = true;
+    }
+
+    pub fn is_defined(&self) -> bool {
+        self.is_defined
     }
 }
 
