@@ -79,6 +79,7 @@ pub enum Occurs {
 #[derive(Debug)]
 pub struct Sequence {
     occurs: Option<Occurs>,
+    size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
     doc: Option<String>
 }
@@ -93,6 +94,7 @@ pub enum SequenceContent {
 #[derive(Debug)]
 pub struct Choice {
     occurs: Option<Occurs>,
+    size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
     doc: Option<String>
 }
@@ -110,6 +112,7 @@ pub struct Element {
     init: ElementInitValue,
     doc: Option<String>,
     occurs: Option<Occurs>,
+    size_occurs: Option<String>,
     reference: bool
 }
 
@@ -204,10 +207,11 @@ impl AnonComplexType {
 }
 
 impl Sequence {
-    pub fn new(occurs: Option<Occurs>, doc: Option<String>) -> Self {
+    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>) -> Self {
         Sequence {
             contents: Vec::new(),
             occurs: occurs,
+            size_occurs: size_occurs,
             doc: doc
         }
     }
@@ -230,14 +234,19 @@ impl Sequence {
 
     pub fn set_doc(&mut self, doc: String) {
         self.doc = Some(doc);
+    }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
     }
 }
 
 impl Choice {
-    pub fn new(occurs: Option<Occurs>, doc: Option<String>) -> Self {
+    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>) -> Self {
         Choice {
             contents: Vec::new(),
             occurs: occurs,
+            size_occurs: size_occurs,
             doc: doc
         }
     }
@@ -261,13 +270,18 @@ impl Choice {
     pub fn set_doc(&mut self, doc: String) {
         self.doc = Some(doc);
     }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
+    }
 }
 
 impl Element {
-    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, reference: bool) -> Self {
+    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, size_occurs: Option<String>, reference: bool) -> Self {
         Element {
             type_: type_,
             occurs: occurs,
+            size_occurs: size_occurs,
             doc: None,
             init: init,
             reference: reference
@@ -296,6 +310,10 @@ impl Element {
 
     pub fn init(&self) -> &ElementInitValue {
         &self.init
+    }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
     }
 }
 

@@ -60,8 +60,14 @@ fn complex_content(r: &mut Reader) -> Result<(ComplexTypeContent, Option<String>
 
 fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
     let occurs = attrs.parse_opt("occurs")?;
+    let size_occurs = attrs.parse_opt("occursSize")?;
+    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
+        Some("size_t".to_owned())
+    } else {
+        size_occurs
+    };
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
-    let mut seq = Sequence::new(occurs, doc);
+    let mut seq = Sequence::new(occurs, size_occurs, doc);
     for content in contents {
         seq.add_content(content);
     }
@@ -70,8 +76,14 @@ fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
 
 fn choice(r: &mut Reader, attrs: Attributes) -> Result<Choice> {
     let occurs = attrs.parse_opt("occurs")?;
+    let size_occurs = attrs.parse_opt("occursSize")?;
+    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
+        Some("size_t".to_owned())
+    } else {
+        size_occurs
+    };
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
-    let mut choice = Choice::new(occurs, doc);
+    let mut choice = Choice::new(occurs, size_occurs, doc);
     for content in contents {
         choice.add_content(content);
     }
@@ -174,6 +186,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let name = attrs.get_opt("name");
     let default = attrs.get_opt("default");
     let occurs = attrs.parse_opt("occurs")?;
+    let size_occurs = attrs.parse_opt("occursSize")?;
     let reference = attrs.get_or("ref", false);
     let mut doc = None;
     let init = match default {
@@ -193,6 +206,12 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
         _ => None
     };
 
+    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
+        Some("size_t".to_owned())
+    } else {
+        size_occurs
+    };
+
     use self::Either::*;
     for item in r.map(&[
         ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?))),
@@ -204,7 +223,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
             }
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs, reference);
+        let mut elem = Element::new(type_, init, occurs, size_occurs, reference);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }

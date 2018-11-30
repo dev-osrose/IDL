@@ -1,14 +1,15 @@
 <packet ePacketType = "PAKCS_LOGIN_REQ">
-    <documentation>
-        Some meaningful documentation
-    </documentation>
+    <element name = "id" type = "uint32_t" />
     <include path = "string" system = "true" />
-    <element name = "password" type = "Password" ref = "true" />
-    <element name = "username" type = "std::string" ref = "true" />
+    <element name = "channels" type = "ChannelInfo" occurs = "unbounded" occursSize = "uint8_t" ref = "true" default = "none" />
 
-    <simpleType name = "Password">
-        <restriction base = "std::string">
-            <length value = "32" />
-        </restriction>
-    </simpleType>
+    <complexType name = "ChannelInfo">
+        <sequence>
+            <element name = "id" type = "uint8_t" />
+            <element name = "lowAge" type = "uint8_t" />
+            <element name = "highAge" type = "uint8_t" />
+            <element name = "capacity" type = "uint16_t" />
+            <element name = "name" type = "std::string" />
+        </sequence>
+    </complexType>
 </packet>

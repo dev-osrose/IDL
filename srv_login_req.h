@@ -1,6 +1,5 @@
 #pragma once
 
-// Some meaningful documentation
 
 #include "packetfactory.h"
 #include <string>
@@ -19,41 +18,21 @@ class SrvLoginReq : public CRosePacket {
         ~SrvLoginReq() = default;
         
         
-        struct Password : public ISerialize {
-            explicit Password();
-            explicit Password(std::string);
-            Password(const Password&) = default;
-            Password(Password&&) = default;
-            Password& operator=(const Password&) = default;
-            Password& operator=(Password&&) = default;
-            virtual ~Password() = default;
-            
-            operator std::string() const { return password; }
-            bool isValid() const { return is_valid; }
-            
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            private:
-                std::string password;
-                bool is_valid;
-        };
+        
+        void set_id(const uint32_t);
+        const uint32_t get_id() const;
+        void set_channels(const ChannelInfo&);
+        const ChannelInfo& get_channels() const;
         
         
-        void set_password(const Password&);
-        const Password& get_password() const;
-        void set_username(const std::string&);
-        const std::string& get_username() const;
-        
-        
-        static SrvLoginReq create(const Password&, const std::string&);
+        static SrvLoginReq create(const uint32_t&);
     
     protected:
         virtual void pack(CRoseBasePolicy&) const override;
     
     private:
-        Password password;
-        std::string username;
+        uint32_t id;
+        ChannelInfo channels;
 };
 
 }

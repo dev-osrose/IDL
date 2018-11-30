@@ -36,14 +36,16 @@ pub use ::packet_schema::ast::Occurs;
 pub struct Sequence {
     elements: Vec<Element>,
     doc: Option<String>,
-    occurs: Option<Occurs>
+    occurs: Option<Occurs>,
+    size_occurs: Option<String>
 }
 
 #[derive(Debug)]
 pub struct Choice {
     elements: Vec<Element>,
     doc: Option<String>,
-    occurs: Option<Occurs>
+    occurs: Option<Occurs>,
+    size_occurs: Option<String>
 }
 
 #[derive(Debug)]
@@ -53,6 +55,7 @@ pub struct Element {
     id: u32,
     doc: Option<String>,
     occurs: Option<Occurs>,
+    size_occurs: Option<String>,
     init: ElementInitValue,
     anonymous: bool,
     reference: bool,
@@ -215,9 +218,10 @@ impl ComplexType {
 impl Sequence {
     pub fn new(
         occurs: Option<Occurs>,
+        size_occurs: Option<String>,
         doc: Option<String>
     ) -> Self {
-        Sequence{ elements: Vec::new(), occurs, doc }
+        Sequence{ elements: Vec::new(), occurs, size_occurs, doc }
     }
 
     pub fn add_element(&mut self, element: Element) {
@@ -238,13 +242,17 @@ impl Sequence {
 
     pub fn occurs(&self) -> &Option<Occurs> {
         &self.occurs
+    }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
     }
 }
 
 impl Choice {
-    pub fn new( occurs: Option<Occurs>
+    pub fn new( occurs: Option<Occurs>, size_occurs: Option<String>
               , doc: Option<String>) -> Self {
-        Choice{ elements: Vec::new(), occurs, doc }
+        Choice{ elements: Vec::new(), occurs, size_occurs, doc }
     }
 
     pub fn add_element(&mut self, element: Element) {
@@ -265,6 +273,10 @@ impl Choice {
 
     pub fn occurs(&self) -> &Option<Occurs> {
         &self.occurs
+    }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
     }
 }
 
@@ -272,10 +284,11 @@ impl Element {
     pub fn new(name: String, type_: String, id: u32
                , init: ElementInitValue
                , occurs: Option<Occurs>
+               , size_occurs: Option<String>
                , doc: Option<String>
                , anonymous: bool
                , reference: bool) -> Self {
-        Element{ name, init, type_, id, occurs, doc
+        Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
                  is_defined: false }
     }
