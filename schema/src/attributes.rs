@@ -202,10 +202,7 @@ impl Parse for ::ast::Occurs {
         use ::ast::Occurs;
         match val {
             "unbounded" => Ok(Occurs::Unbounded),
-            _ => match u32::parse(val) {
-                Ok(n) => Ok(Occurs::Num(n)),
-                Err(_) => Err(ParseError::new(format!("{} is not a num", val)))
-            }
+            s => Ok(Occurs::Num(s.to_owned()))
         }
     }
 }

@@ -59,10 +59,7 @@ impl<'a, W: Write> CodeHeaderGenerator<'a, W> {
         cg!(self);
         cg!(self, r#"namespace RoseCommon {{
 namespace Packet {{
-
-REGISTER_RECV_PACKET(ePacketType::{0}, {1})
-REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
-            packet.type_(), packet.class_name());
+"#);
         
         cg!(self, "class {} : public CRosePacket {{", packet.class_name());
         self.indent();
@@ -73,6 +70,8 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         cg!(self, "{0}({0}&&) = default;", packet.class_name());
         cg!(self, "{0}& operator=({0}&&) = default;", packet.class_name());
         cg!(self, "~{}() = default;", packet.class_name());
+        cg!(self);
+        cg!(self, "static constexpr size_t size();");
         cg!(self);
 
         for content in packet.contents() {
@@ -160,6 +159,8 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         cg!(self, "virtual bool read(CRoseReader&) override;");
         cg!(self, "virtual bool write(CRoseBasePolicy&) const override;");
         cg!(self);
+        cg!(self, "static constexpr size_t size();");
+        cg!(self);
         match complex.content() {
             Seq(ref s) => {
                 for elem in s.elements() {
@@ -204,7 +205,8 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         self.doc(simple.doc())?;
         for content in simple.contents() {
             match content {
-                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name())?            }
+                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name())?
+            }
         }
         Ok(())
     }
@@ -212,19 +214,62 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
     fn element(&mut self, elem: &Element) -> Result<()> {
         self.doc(elem.doc())?;
 
-        cg!(self, "{} {};", elem.type_(), elem.name());
+        if let Some(ref o) = elem.occurs() {
+            use ::flat_ast::Occurs::*;
+            match o {
+                Unbounded => { cg!(self, "std::vector<{}> {};", elem.type_(), elem.name()); },
+                Num(n) => { cg!(self, "{} {}[{}];", elem.type_(), elem.name(), n); }
+            }
+        } else {
+            cg!(self, "{} {};", elem.type_(), elem.name());
+        }
         Ok(())
     }
 
     fn elem_setter(&mut self, elem: &Element) -> Result<()> {
+        let mut reference = if elem.reference() { "&" } else { "" };
+        use ::flat_ast::Occurs::*;
+        let type_ = if let Some(ref o) = elem.occurs() {
+            match o {
+                Unbounded => format!("std::vector<{}>", elem.type_()),
+                Num(_) => {
+                    reference = "";
+                    format!("{}*", elem.type_())
+                }
+            }
+        } else {
+            elem.type_().to_owned()
+        };
+        cg!(self, "void set_{}(const {}{});", elem.name(), type_, reference);
         let reference = if elem.reference() { "&" } else { "" };
-        cg!(self, "void set_{}(const {}{});", elem.name(), elem.type_(), reference);
+        if let Some(ref o) = elem.occurs() {
+            match o {
+                Unbounded => { cg!(self, "void add_{}(const {}{});", elem.name(), elem.type_(), reference); },
+                Num(_) => { cg!(self, "void set_{}(const {}{}, size_t index);", elem.name(), elem.type_(), reference); }
+            }
+        }
         Ok(())
     }
 
     fn elem_getter(&mut self, elem: &Element) -> Result<()> {
+        let mut reference = if elem.reference() { "&" } else { "" };
+        let type_ = if let Some(ref o) = elem.occurs() {
+            use ::flat_ast::Occurs::*;
+            match o {
+                Unbounded => format!("std::vector<{}>", elem.type_()),
+                Num(_) => {
+                    reference = "";
+                    format!("{}*", elem.type_())
+                }
+            }
+        } else {
+            elem.type_().to_owned()
+        };
+        cg!(self, "const {}{} get_{}() const;", type_, reference, elem.name());
         let reference = if elem.reference() { "&" } else { "" };
-        cg!(self, "const {}{} get_{}() const;", elem.type_(), reference, elem.name());
+        if elem.occurs().is_some() {
+            cg!(self, "const {}{} get_{}(size_t index) const;", elem.type_(), reference, elem.name());
+        }
         Ok(())
     }
 
@@ -269,13 +314,15 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
         } else {
             cg!(self, "struct {} : public ISerialize {{", name);
             self.indent();
-            cg!(self, "explicit {}();", name);
-            cg!(self, "explicit {}({});", name, base);
+            cg!(self, "{}();", name);
+            cg!(self, "{}({});", name, base);
             cg!(self, "{0}(const {0}&) = default;", name);
             cg!(self, "{0}({0}&&) = default;", name);
             cg!(self, "{0}& operator=(const {0}&) = default;", name);
             cg!(self, "{0}& operator=({0}&&) = default;", name);
             cg!(self, "virtual ~{}() = default;", name);
+            cg!(self);
+            cg!(self, "static constexpr size_t size();");
             cg!(self);
             cg!(self, "operator {}() const {{ return {}; }}", base, name.to_string().to_snake_case());
             cg!(self, "bool isValid() const {{ return is_valid; }}");

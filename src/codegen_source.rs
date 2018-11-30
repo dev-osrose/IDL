@@ -72,9 +72,62 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         elem.name().to_owned()
                     };
-                    self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
-                        "return;"
-                    ], None)?;
+                    if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => {
+                                cg!(self, "{{");
+                                self.indent();
+                                let class_base = if elem.is_defined() {
+                                    packet.class_name().to_owned() + "::"
+                                } else {
+                                    "".to_owned()
+                                };
+                                let enum_name = if let Some(ref enum_type) = elem.enum_type() {
+                                    format!("({}&)", enum_type)
+                                } else {
+                                    "".to_owned()
+                                };
+                                if let Some(ref s) = elem.size_occurs() {
+                                    cg!(self, "{} size;", s);
+                                    self.write_if_else(&format!("!reader.get_{}(size)", s), &[
+                                        "return;"
+                                    ], None)?;
+                                    cg!(self, "while (size-- > 0) {{");
+                                    self.indent();
+                                    cg!(self, "{} elem;", class_base + elem.type_());
+                                    self.write_if_else(&format!("!reader.get_{}({}elem)", base, enum_name), &[
+                                        "return;"
+                                    ], None)?;
+                                    cg!(self, "{}.push_back(elem);", elem.name());
+                                    self.dedent();
+                                    cg!(self, "}}");
+                                } else {
+                                    cg!(self, "{} elem;", class_base + elem.type_());
+                                    cg!(self, "while (reader.get_{}({}elem)) {{", base, enum_name);
+                                    self.indent();
+                                    cg!(self, "{}.push_back(elem);", elem.name());
+                                    self.dedent();
+                                    cg!(self, "}}");
+                                }
+                                self.dedent();
+                                cg!(self, "}}");
+                            },
+                            Num(n) => {
+                                cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
+                                self.indent();
+                                self.write_if_else(&format!("!reader.get_{}({}[index])", base, name), &[
+                                        "return;"
+                                    ], None)?;
+                                self.dedent();
+                                cg!(self, "}}");
+                            }
+                        }
+                    } else {
+                        self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
+                            "return;"
+                        ], None)?;
+                    }
                 },
                 _ => {}
             }
@@ -98,6 +151,41 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self);
         self.pack(packet)?;
         cg!(self);
+        cg!(self, "constexpr size_t {}::size() {{", packet.class_name());
+        self.indent();
+        let iserialize = packet.contents().iter().filter_map(|elem| match elem {
+            self::PacketContent::Element(elem) => if elem.is_defined() { Some(elem.type_().to_owned()) } else { None },
+            _ => None
+        }).collect::<::std::collections::HashSet<String>>();
+        cg!(self, "size_t size = 0;");
+        for elem in packet.contents() {
+            match elem {
+                self::PacketContent::Element(elem) => {
+                    if elem.type_() == "std::string" {
+                        continue;
+                    }
+                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                        format!("{}::size()", elem.type_())
+                    } else {
+                        format!("sizeof({})", elem.type_())
+                    };
+                    let rhs = if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => rhs,
+                            Num(n) => rhs + " * " + n
+                        }
+                    } else {
+                        rhs
+                    };
+                    cg!(self, "size += {};", rhs);
+                },
+                _ => {}
+            }
+        }
+        cg!(self, "return size;");
+        self.dedent();
+        cg!(self, "}}");
         Ok(())
     }
 
@@ -114,6 +202,33 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 cg!(self);
                 self.read_sequence(s, &class_name)?;
                 cg!(self);
+                cg!(self, "constexpr size_t {}::size() {{", class_name);
+                self.indent();
+                let iserialize = s.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
+                cg!(self, "size_t size = 0;");
+                for elem in s.elements() {
+                    if elem.type_() == "std::string" {
+                        continue;
+                    }
+                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                        format!("{}::size()", elem.type_())
+                    } else {
+                        format!("sizeof({})", elem.type_())
+                    };
+                    let rhs = if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => rhs,
+                            Num(n) => rhs + " * " + n
+                        }
+                    } else {
+                        rhs
+                    };
+                    cg!(self, "size += {};", rhs);
+                }
+                cg!(self, "return size;");
+                self.dedent();
+                cg!(self, "}}");
             },
             Choice(ref c) => {
                 for elem in c.elements() {
@@ -124,6 +239,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 cg!(self);
                 self.read_choice(c, &class_name)?;
                 cg!(self);
+                cg!(self, "constexpr size_t {}::size() {{", class_name);
+                self.indent();
+                cg!(self, "return sizeof(data);");
+                self.dedent();
+                cg!(self, "}}");
             },
             Empty => {}
         }
@@ -143,34 +263,106 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn elem_setter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
-        let reference = if elem.reference() { "&" } else { "" };
+        let mut reference = if elem.reference() { "&" } else { "" };
+        use ::flat_ast::Occurs::*;
         let base = if elem.is_defined() {
             class_name.to_owned() + "::"
         } else {
             "".to_owned()
         };
-        cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), base + elem.type_(), reference);
+        let type_ = if let Some(ref o) = elem.occurs() {
+            match o {
+                Unbounded => format!("std::vector<{}>", base + elem.type_()),
+                Num(_) => {
+                    reference = "";
+                    format!("{}*", base + elem.type_())
+                }
+            }
+        } else {
+            base + elem.type_()
+        };
+        cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), type_, reference);
         self.indent();
-        cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
+        if let Some(ref o) = elem.occurs() {
+            match o {
+                Unbounded => { cg!(self, "this->{0} = {0};", elem.name()); },
+                Num(n) => {
+                    cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
+                    self.indent();
+                    cg!(self, "this->{0}[index] = {0}[index];", elem.name());
+                    self.dedent();
+                    cg!(self, "}}");
+                }
+            }
+        } else {
+            cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
+        }
         self.dedent();
         cg!(self, "}}");
         cg!(self);
+        let reference = if elem.reference() { "&" } else { "" };
+        if let Some(ref o) = elem.occurs() {
+            match o {
+                Unbounded => {
+                    cg!(self, "void {0}::add_{1}(const {2}{3} {1}) {{", class_name, elem.name(), elem.type_(), reference);
+                    self.indent();
+                    cg!(self, "this->{0}.emplace_back({0});", elem.name());
+                    self.dedent();
+                    cg!(self, "}}");
+                    cg!(self);
+                },
+                Num(_) => {
+                    cg!(self, "void {}::set_{}(const {}{}, size_t index) {{", class_name, elem.name(), elem.type_(), reference);
+                    self.indent();
+                    cg!(self, "this->{0}[index] = {0};", elem.name());
+                    self.dedent();
+                    cg!(self, "}}");
+                    cg!(self);
+                }
+            }
+        }      
         Ok(())
     }
 
     fn elem_getter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
-        let reference = if elem.reference() { "&" } else { "" };
+        let mut reference = if elem.reference() { "&" } else { "" };
         let base = if elem.is_defined() {
             class_name.to_owned() + "::"
         } else {
             "".to_owned()
         };
-        cg!(self, "const {2}{3} {0}::get_{1}() const {{", class_name, elem.name(), base + elem.type_(), reference);
+        let type_ = if let Some(ref o) = elem.occurs() {
+            use ::flat_ast::Occurs::*;
+            match o {
+                Unbounded => format!("std::vector<{}>", base + elem.type_()),
+                Num(_) => {
+                    reference = ""; 
+                    format!("{}*", base + elem.type_())
+                }
+            }
+        } else {
+            base + elem.type_()
+        };
+        cg!(self, "const {2}{3} {0}::get_{1}() const {{", class_name, elem.name(), type_, reference);
         self.indent();
         cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
         cg!(self, "}}");
         cg!(self);
+        let reference = if elem.reference() { "&" } else { "" };
+        if elem.occurs().is_some() {
+            let base = if elem.is_defined() {
+                class_name.to_owned() + "::"
+            } else {
+                "".to_owned()
+            };
+            cg!(self, "const {}{} {}::get_{}(size_t index) const {{", base + elem.type_(), reference, class_name, elem.name());
+            self.indent();
+            cg!(self, "return {}[index];", elem.name());
+            self.dedent();
+            cg!(self, "}}");
+            cg!(self);
+        }
         Ok(())
     }
 
@@ -230,9 +422,38 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         clean_base(elem.type_())
                     };
-                    self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
-                        "return;"
-                    ], None)?;
+                    if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => {
+                                if let Some(ref s) = elem.size_occurs() {
+                                    self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
+                                        "return;"
+                                    ], None)?;
+                                }
+                                cg!(self, "for (const auto& elem : {}) {{", elem.name());
+                                self.indent();
+                                self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
+                                        "return;"
+                                    ], None)?;
+                                self.dedent();
+                                cg!(self, "}}");
+                            },
+                            Num(n) => {
+                                cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
+                                self.indent();
+                                self.write_if_else(&format!("!writer.set_{}({}[index])", base, elem.name()), &[
+                                        "return;"
+                                    ], None)?;
+                                self.dedent();
+                                cg!(self, "}}");
+                            }
+                        }
+                    } else {
+                        self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
+                            "return;"
+                        ], None)?;
+                    }
                 },
                 _ => {}
             }
@@ -254,9 +475,38 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             } else {
                 clean_base(elem.type_())
             };
-            self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
-                "return false;"
-            ], None)?;
+            if let Some(ref o) = elem.occurs() {
+                use ::flat_ast::Occurs::*;
+                match o {
+                    Unbounded => {
+                        if let Some(ref s) = elem.size_occurs() {
+                            self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
+                                "return false;"
+                            ], None)?;
+                        }
+                        cg!(self, "for (const auto& elem : {}) {{", elem.name());
+                        self.indent();
+                        self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
+                                "return false;"
+                            ], None)?;
+                        self.dedent();
+                        cg!(self, "}}");
+                    },
+                    Num(n) => {
+                        cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
+                        self.indent();
+                        self.write_if_else(&format!("!writer.set_{}({}[index])", base, elem.name()), &[
+                                "return false;"
+                            ], None)?;
+                        self.dedent();
+                        cg!(self, "}}");
+                    }
+                }
+            } else {
+                self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
+                    "return false;"
+                ], None)?;
+            }
         }
         cg!(self, "return true;");
         self.dedent();
@@ -423,6 +673,23 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 }
             }
             cg!(self, "return true;");
+            self.dedent();
+            cg!(self, "}}");
+            cg!(self);
+            cg!(self, "constexpr size_t {}::{}::size() {{", class_name, name);
+            self.indent();
+            cg!(self, "size_t size = 0;");
+            let mut tmp = false;
+            for content in restrict.contents() {
+                match content {
+                    Length(l) => { tmp = true; cg!(self, "size += {};", l); },
+                    _ => {}
+                }
+            }
+            if !tmp {
+                cg!(self, "size += sizeof({});", base);
+            }
+            cg!(self, "return size;");
             self.dedent();
             cg!(self, "}}");
         }

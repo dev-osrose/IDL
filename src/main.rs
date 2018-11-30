@@ -12,7 +12,7 @@ mod graph_passes;
 
 fn main() -> Result<(), failure::Error> {
     use std::fs::File;
-    let file = File::open("test.xml")?;
+    let file = File::open("srv_login_req.xml")?;
     let packet = packet_schema::Reader::load_packet(file)?;
     let packet = flatten::flatten("./", &packet)?;
     let packet = graph_passes::run(packet)?;

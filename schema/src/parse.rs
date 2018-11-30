@@ -61,11 +61,6 @@ fn complex_content(r: &mut Reader) -> Result<(ComplexTypeContent, Option<String>
 fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
-    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
-        Some("size_t".to_owned())
-    } else {
-        size_occurs
-    };
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
     let mut seq = Sequence::new(occurs, size_occurs, doc);
     for content in contents {
@@ -77,11 +72,6 @@ fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
 fn choice(r: &mut Reader, attrs: Attributes) -> Result<Choice> {
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
-    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
-        Some("size_t".to_owned())
-    } else {
-        size_occurs
-    };
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
     let mut choice = Choice::new(occurs, size_occurs, doc);
     for content in contents {
@@ -204,12 +194,6 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let mut type_ = match (type_, name.clone()) {
         (Some(type_), Some(name)) => Some(ElementType::Named{name, type_}),
         _ => None
-    };
-
-    let size_occurs = if occurs.is_some() && size_occurs.is_none() {
-        Some("size_t".to_owned())
-    } else {
-        size_occurs
     };
 
     use self::Either::*;

@@ -340,6 +340,10 @@ impl Element {
     pub fn is_defined(&self) -> bool {
         self.is_defined
     }
+
+    pub fn size_occurs(&self) -> &Option<String> {
+        &self.size_occurs
+    }
 }
 
 impl SimpleType {

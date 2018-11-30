@@ -70,9 +70,9 @@ pub enum ComplexTypeContent {
     Empty
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Occurs {
-    Num(u32),
+    Num(String),
     Unbounded
 }
 

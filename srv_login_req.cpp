@@ -35,11 +35,11 @@ const uint16_t SrvLoginReq::ChannelInfo::get_capacity() const {
     return capacity;
 }
 
-void SrvLoginReq::ChannelInfo::set_name(const std::string name) {
+void SrvLoginReq::ChannelInfo::set_name(const std::string& name) {
     this->name = name;
 }
 
-const std::string SrvLoginReq::ChannelInfo::get_name() const {
+const std::string& SrvLoginReq::ChannelInfo::get_name() const {
     return name;
 }
 
@@ -81,36 +81,14 @@ bool SrvLoginReq::ChannelInfo::read(CRoseReader& reader) {
     return true;
 }
 
-void SrvLoginReq::Test::set_a(const uint8_t a) {
-    this->data.a = a;
+constexpr size_t SrvLoginReq::ChannelInfo::size() {
+    size_t size = 0;
+    size += sizeof(uint8_t);
+    size += sizeof(uint8_t);
+    size += sizeof(uint8_t);
+    size += sizeof(uint16_t);
+    return size;
 }
-
-const uint8_t SrvLoginReq::Test::get_a() const {
-    return data.a;
-}
-
-void SrvLoginReq::Test::set_b(const uint8_t b) {
-    this->data.b = b;
-}
-
-const uint8_t SrvLoginReq::Test::get_b() const {
-    return data.b;
-}
-
-bool SrvLoginReq::Test::write(CRoseBasePolicy& writer) const {
-    if (!writer.set_union(data)) {
-        return false;
-    }
-    return true;
-}
-
-bool SrvLoginReq::Test::read(CRoseReader& reader) {
-    if (!reader.get_union(data)) {
-        return false;
-    }
-    return true;
-}
-
 
 SrvLoginReq::SrvLoginReq() : CRosePacket(ePacketType::PAKCS_LOGIN_REQ) {}
 
@@ -118,8 +96,18 @@ SrvLoginReq::SrvLoginReq(CRoseReader reader) : CRosePacket(reader) {
     if (!reader.get_uint32_t(id)) {
         return;
     }
-    if (!reader.get_iserialize(channels)) {
-        return;
+    {
+        uint8_t size;
+        if (!reader.get_uint8_t(size)) {
+            return;
+        }
+        while (size-- > 0) {
+            SrvLoginReq::ChannelInfo elem;
+            if (!reader.get_iserialize(elem)) {
+                return;
+            }
+            channels.push_back(elem);
+        }
     }
 }
 
@@ -131,12 +119,20 @@ const uint32_t SrvLoginReq::get_id() const {
     return id;
 }
 
-void SrvLoginReq::set_channels(const SrvLoginReq::ChannelInfo& channels) {
+void SrvLoginReq::set_channels(const std::vector<SrvLoginReq::ChannelInfo>& channels) {
     this->channels = channels;
 }
 
-const SrvLoginReq::ChannelInfo& SrvLoginReq::get_channels() const {
+void SrvLoginReq::add_channels(const ChannelInfo& channels) {
+    this->channels.emplace_back(channels);
+}
+
+const std::vector<SrvLoginReq::ChannelInfo>& SrvLoginReq::get_channels() const {
     return channels;
+}
+
+const SrvLoginReq::ChannelInfo& SrvLoginReq::get_channels(size_t index) const {
+    return channels[index];
 }
 
 SrvLoginReq SrvLoginReq::create(const uint32_t& id) {
@@ -149,8 +145,19 @@ void SrvLoginReq::pack(CRoseBasePolicy& writer) const {
     if (!writer.set_uint32_t(id)) {
         return;
     }
-    if (!writer.set_iserialize(channels)) {
+    if (!writer.set_uint8_t(channels.size())) {
         return;
+    }
+    for (const auto& elem : channels) {
+        if (!writer.set_iserialize(elem)) {
+            return;
+        }
     }
 }
 
+constexpr size_t SrvLoginReq::size() {
+    size_t size = 0;
+    size += sizeof(uint32_t);
+    size += ChannelInfo::size();
+    return size;
+}

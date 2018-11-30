@@ -9,14 +9,7 @@
             <element name = "lowAge" type = "uint8_t" />
             <element name = "highAge" type = "uint8_t" />
             <element name = "capacity" type = "uint16_t" />
-            <element name = "name" type = "std::string" />
+            <element name = "name" type = "std::string" ref = "true" />
         </sequence>
-    </complexType>
-
-    <complexType name = "Test">
-        <choice>
-            <element name = "a" type = "uint8_t"/>
-            <element name = "b" type = "uint8_t"/>
-        </choice>
     </complexType>
 </packet>

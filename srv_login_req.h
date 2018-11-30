@@ -3,12 +3,11 @@
 
 #include "packetfactory.h"
 #include <string>
+#include <vector>
 
 namespace RoseCommon {
 namespace Packet {
 
-REGISTER_RECV_PACKET(ePacketType::PAKCS_LOGIN_REQ, SrvLoginReq)
-REGISTER_SEND_PACKET(ePacketType::PAKCS_LOGIN_REQ, SrvLoginReq)
 class SrvLoginReq : public CRosePacket {
     public:
         SrvLoginReq();
@@ -17,10 +16,14 @@ class SrvLoginReq : public CRosePacket {
         SrvLoginReq& operator=(SrvLoginReq&&) = default;
         ~SrvLoginReq() = default;
         
+        static constexpr size_t size();
+        
         
         struct ChannelInfo : public ISerialize {
             virtual bool read(CRoseReader&) override;
             virtual bool write(CRoseBasePolicy&) const override;
+            
+            static constexpr size_t size();
             
             void set_id(const uint8_t);
             const uint8_t get_id() const;
@@ -30,8 +33,8 @@ class SrvLoginReq : public CRosePacket {
             const uint8_t get_highAge() const;
             void set_capacity(const uint16_t);
             const uint16_t get_capacity() const;
-            void set_name(const std::string);
-            const std::string get_name() const;
+            void set_name(const std::string&);
+            const std::string& get_name() const;
             
             private:
                 uint8_t id;
@@ -41,27 +44,13 @@ class SrvLoginReq : public CRosePacket {
                 std::string name;
         };
         
-        struct Test : public ISerialize {
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            void set_a(const uint8_t);
-            const uint8_t get_a() const;
-            void set_b(const uint8_t);
-            const uint8_t get_b() const;
-            
-            private:
-                union {
-                    uint8_t a;
-                    uint8_t b;
-                } data;
-        };
-        
         
         void set_id(const uint32_t);
         const uint32_t get_id() const;
-        void set_channels(const ChannelInfo&);
-        const ChannelInfo& get_channels() const;
+        void set_channels(const std::vector<ChannelInfo>&);
+        void add_channels(const ChannelInfo&);
+        const std::vector<ChannelInfo>& get_channels() const;
+        const ChannelInfo& get_channels(size_t index) const;
         
         
         static SrvLoginReq create(const uint32_t&);
@@ -71,7 +60,7 @@ class SrvLoginReq : public CRosePacket {
     
     private:
         uint32_t id;
-        ChannelInfo channels;
+        std::vector<ChannelInfo> channels;
 };
 
 }
