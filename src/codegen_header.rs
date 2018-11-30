@@ -154,6 +154,48 @@ REGISTER_SEND_PACKET(ePacketType::{0}, {1})"#,
     }
 
     fn complex_type(&mut self, complex: &ComplexType) -> Result<()> {
+        use ::flat_ast::ComplexTypeContent::*;
+        cg!(self, "struct {} : public ISerialize {{", complex.name());
+        self.indent();
+        cg!(self, "virtual bool read(CRoseReader&) override;");
+        cg!(self, "virtual bool write(CRoseBasePolicy&) const override;");
+        cg!(self);
+        match complex.content() {
+            Seq(ref s) => {
+                for elem in s.elements() {
+                    self.elem_setter(elem)?;
+                    self.elem_getter(elem)?;
+                }
+                cg!(self);
+                cg!(self, "private:");
+                self.indent();
+                for elem in s.elements() {
+                    self.element(elem)?;
+                }
+                self.dedent();
+            },
+            Choice(ref c) => {
+                for elem in c.elements() {
+                    self.elem_setter(elem)?;
+                    self.elem_getter(elem)?;
+                }
+                cg!(self);
+                cg!(self, "private:");
+                self.indent();
+                cg!(self, "union {{");
+                self.indent();
+                for elem in c.elements() {
+                    self.element(elem)?;
+                }
+                self.dedent();
+                cg!(self, "}} data;");
+                self.dedent();
+            },
+            Empty => {}
+        }
+        self.dedent();
+        cg!(self, "}};");
+        cg!(self);
         Ok(())
     }
 

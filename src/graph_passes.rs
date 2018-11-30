@@ -86,7 +86,7 @@ impl Graph {
             color: Color::White,
             prune: true,
             is_defined: match type_ {
-                NodeType::TySimple | NodeType::TyEnum => true,
+                NodeType::TySimple | NodeType::TyEnum | NodeType::TySeq | NodeType::TyChoice => true,
                 _ => false
             }
         };

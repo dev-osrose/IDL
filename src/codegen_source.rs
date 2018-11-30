@@ -45,7 +45,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Complex(complex) => self.complex_type(complex)?,
+                Complex(complex) => self.complex_type(complex, packet.class_name())?,
                 _ => {}
             }
         }
@@ -87,8 +87,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    self.elem_setter(elem, packet.class_name())?;
-                    self.elem_getter(elem, packet.class_name())?;
+                    self.elem_setter(elem, packet.class_name(), false)?;
+                    self.elem_getter(elem, packet.class_name(), false)?;
                 },
                 _ => {}
             }
@@ -101,7 +101,32 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn complex_type(&mut self, complex: &ComplexType) -> Result<()> {
+    fn complex_type(&mut self, complex: &ComplexType, class_name: &str) -> Result<()> {
+        use ::flat_ast::ComplexTypeContent::*;
+        let class_name = class_name.to_owned() + "::" + complex.name();
+        match complex.content() {
+            Seq(ref s) => {
+                for elem in s.elements() {
+                    self.elem_setter(elem, &class_name, false)?;
+                    self.elem_getter(elem, &class_name, false)?;
+                }
+                self.pack_sequence(s, &class_name)?;
+                cg!(self);
+                self.read_sequence(s, &class_name)?;
+                cg!(self);
+            },
+            Choice(ref c) => {
+                for elem in c.elements() {
+                    self.elem_setter(elem, &class_name, true)?;
+                    self.elem_getter(elem, &class_name, true)?;
+                }
+                self.pack_choice(c, &class_name)?;
+                cg!(self);
+                self.read_choice(c, &class_name)?;
+                cg!(self);
+            },
+            Empty => {}
+        }
         Ok(())
     }
 
@@ -117,7 +142,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn elem_setter(&mut self, elem: &Element, class_name: &str) -> Result<()> {
+    fn elem_setter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
         let reference = if elem.reference() { "&" } else { "" };
         let base = if elem.is_defined() {
             class_name.to_owned() + "::"
@@ -126,14 +151,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         };
         cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), base + elem.type_(), reference);
         self.indent();
-        cg!(self, "this->{0} = {0};", elem.name());
+        cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
         cg!(self, "}}");
         cg!(self);
         Ok(())
     }
 
-    fn elem_getter(&mut self, elem: &Element, class_name: &str) -> Result<()> {
+    fn elem_getter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
         let reference = if elem.reference() { "&" } else { "" };
         let base = if elem.is_defined() {
             class_name.to_owned() + "::"
@@ -142,7 +167,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         };
         cg!(self, "const {2}{3} {0}::get_{1}() const {{", class_name, elem.name(), base + elem.type_(), reference);
         self.indent();
-        cg!(self, "return {};", elem.name());
+        cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
         cg!(self, "}}");
         cg!(self);
@@ -212,6 +237,74 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 _ => {}
             }
         }
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn pack_sequence(&mut self, packet: &Sequence, class_name: &str) -> Result<()> {
+        cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
+        self.indent();
+        let iserialize = packet.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
+        for elem in packet.elements() {
+            let base = if let Some(ref enum_type) = elem.enum_type() {
+                enum_type.clone()
+            } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                "iserialize".to_owned()
+            } else {
+                clean_base(elem.type_())
+            };
+            self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
+                "return false;"
+            ], None)?;
+        }
+        cg!(self, "return true;");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn read_sequence(&mut self, packet: &Sequence, class_name: &str) -> Result<()> {
+        cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
+        self.indent();
+        let iserialize = packet.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
+        for elem in packet.elements() {
+            let base = if let Some(ref enum_type) = elem.enum_type() {
+                enum_type.clone()
+            } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                "iserialize".to_owned()
+            } else {
+                clean_base(elem.type_())
+            };
+            self.write_if_else(&format!("!reader.get_{}({})", base, elem.name()), &[
+                "return false;"
+            ], None)?;
+        }
+        cg!(self, "return true;");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn pack_choice(&mut self, packet: &Choice, class_name: &str) -> Result<()> {
+        cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
+        self.indent();
+        self.write_if_else("!writer.set_union(data)", &[
+                "return false;"
+            ], None)?;
+        cg!(self, "return true;");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn read_choice(&mut self, packet: &Choice, class_name: &str) -> Result<()> {
+        cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
+        self.indent();
+        self.write_if_else("!reader.get_union(data)", &[
+                "return false;"
+            ], None)?;
+        cg!(self, "return true;");
         self.dedent();
         cg!(self, "}}");
         Ok(())
