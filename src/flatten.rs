@@ -76,7 +76,7 @@ fn flatten_(search_path: &str, packet: &ast::Packet, ctx: &mut Context) -> Resul
             },
             ast::PacketContent::IncludeXml(ref location) => {
                 let filenm = format!("{}/{}", search_path, location);
-                println!("Including {}", filenm);
+                debug!("Including {}", filenm);
                 let file = File::open(&filenm)?;
                 let packet = Reader::load_packet(file)?;
                 flatten_(search_path, &packet, ctx)?;

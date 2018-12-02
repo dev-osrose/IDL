@@ -405,6 +405,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "return packet;");
         self.dedent();
         cg!(self, "}}");
+        cg!(self);
+        cg!(self, "{0} {0}::create(const uint8_t* buffer) {{", packet.class_name());
+        self.indent();
+        cg!(self, "CRoseReader reader(buffer);");
+        cg!(self, "return {}(reader);", packet.class_name());
+        self.dedent();
+        cg!(self, "}}");
         Ok(())
     }
 
