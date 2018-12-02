@@ -343,7 +343,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         } else {
             base + elem.type_()
         };
-        cg!(self, "const {2}{3} {0}::get_{1}() const {{", class_name, elem.name(), type_, reference);
+        let is_const = if elem.reference() { "const " } else { "" };
+        cg!(self, "{4}{2}{3} {0}::get_{1}() const {{", class_name, elem.name(), type_, reference, is_const);
         self.indent();
         cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
@@ -356,7 +357,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             } else {
                 "".to_owned()
             };
-            cg!(self, "const {}{} {}::get_{}(size_t index) const {{", base + elem.type_(), reference, class_name, elem.name());
+            cg!(self, "{}{}{} {}::get_{}(size_t index) const {{", is_const, base + elem.type_(), reference, class_name, elem.name());
             self.indent();
             cg!(self, "return {}[index];", elem.name());
             self.dedent();

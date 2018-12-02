@@ -7,3 +7,4 @@ authors = ["L3nn0x <dragon83.super@gmail.com>"]
 packet_schema = { path = "./schema" }
 failure = "0.1"
 heck = "0.3.0"
+clap = "2"
