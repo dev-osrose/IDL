@@ -164,7 +164,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     if elem.type_() == "std::string" {
                         continue;
                     }
-                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
                     } else {
                         format!("sizeof({})", elem.type_())

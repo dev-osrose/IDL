@@ -24,10 +24,16 @@ fn main() -> Result<(), failure::Error> {
                 .help("Sets the input xml file")
                 .required(true)
                 .index(1))
-        .arg(Arg::with_name("output")
-                .help("uses selected output directory")
-                .short("o")
-                .long("output")
+        .arg(Arg::with_name("outputh")
+                .help("uses selected output directory for header")
+                .short("h")
+                .long("outputh")
+                .value_name("FOLDER")
+                .takes_value(true))
+        .arg(Arg::with_name("outputc")
+                .help("uses selected output directory for source")
+                .short("c")
+                .long("outputc")
                 .value_name("FOLDER")
                 .takes_value(true))
         .arg(Arg::with_name("v")
@@ -36,7 +42,7 @@ fn main() -> Result<(), failure::Error> {
                 .help("sets the level of verbosity"))
         .get_matches();
 
-    let filename = matches.value_of("INPUT").unwrap();
+    let filename = std::path::Path::new(matches.value_of("INPUT").unwrap());
 
     let verbose = match matches.occurrences_of("v") {
         0 => "info",
@@ -44,19 +50,20 @@ fn main() -> Result<(), failure::Error> {
         2 | _ => "trace",
     };
 
-    let output_dir = matches.value_of("output").unwrap_or("./");
+    let outputh_dir = std::path::Path::new(matches.value_of("outputh").unwrap_or("./"));
+    let outputc_dir = std::path::Path::new(matches.value_of("outputc").unwrap_or("./"));
 
     use std::fs::File;
     let file = File::open(filename)?;
     let packet = packet_schema::Reader::load_packet(file)?;
-    let packet = flatten::flatten("./", &packet)?;
+    let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")).to_str().unwrap(), &packet)?;
     let packet = graph_passes::run(packet)?;
     println!("{:?}", packet);
-    let header_output = File::create(format!("{}.h", packet.filename()))?;
+    let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;
     let mut writer = writer::Writer::new(header_output);
     let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer);
     codegen.generate(&packet)?;
-    let source_output = File::create(format!("{}.cpp", packet.filename()))?;
+    let source_output = File::create(outputc_dir.to_str().unwrap().to_owned() + &format!("/{}.cpp", packet.filename()))?;
     let mut writer = writer::Writer::new(source_output);
     let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer);
     codegen.generate(&packet)?;
