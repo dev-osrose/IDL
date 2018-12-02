@@ -46,8 +46,7 @@ fn main() -> Result<(), failure::Error> {
 
     let verbose = match matches.occurrences_of("v") {
         0 => Level::Info,
-        1 => Level::Debug,
-        2 | _ => Level::Trace,
+        1 | _ => Level::Debug,
     };
 
     simple_logger::init_with_level(verbose).unwrap();
@@ -57,6 +56,7 @@ fn main() -> Result<(), failure::Error> {
     let outputc_dir = std::path::Path::new(matches.value_of("outputc").unwrap_or("./"));
 
     for filename in matches.values_of("INPUT").unwrap().map(std::path::Path::new) {
+        debug!("filename {:?}", filename);
         use std::fs::File;
         let file = File::open(filename)?;
         let packet = packet_schema::Reader::load_packet(file)?;
@@ -65,12 +65,14 @@ fn main() -> Result<(), failure::Error> {
         }
         let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")).to_str().unwrap(), &packet)?;
         let packet = graph_passes::run(packet)?;
-        debug!("{:?}", packet);
+        debug!("packet {:?}", packet);
         let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;
+        debug!("header {:?}", header_output);
         let mut writer = writer::Writer::new(header_output);
         let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer);
         codegen.generate(&packet)?;
         let source_output = File::create(outputc_dir.to_str().unwrap().to_owned() + &format!("/{}.cpp", packet.filename()))?;
+        debug!("source {:?}", source_output);
         let mut writer = writer::Writer::new(source_output);
         let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer);
         codegen.generate(&packet)?;
