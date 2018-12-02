@@ -6,6 +6,7 @@ authors = ["L3nn0x <dragon83.super@gmail.com>"]
 [dependencies]
 xml-rs = "0.7"
 failure = "0.1"
+log = "0.4"
 
 [lib]
 name = "packet_schema"
