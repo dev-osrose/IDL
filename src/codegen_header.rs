@@ -265,10 +265,11 @@ namespace Packet {{
         } else {
             elem.type_().to_owned()
         };
-        cg!(self, "const {}{} get_{}() const;", type_, reference, elem.name());
+        let is_const = if elem.reference() { "const " } else { "" };
+        cg!(self, "{}{}{} get_{}() const;", is_const, type_, reference, elem.name());
         let reference = if elem.reference() { "&" } else { "" };
         if elem.occurs().is_some() {
-            cg!(self, "const {}{} get_{}(size_t index) const;", elem.type_(), reference, elem.name());
+            cg!(self, "{}{}{} get_{}(size_t index) const;", is_const, elem.type_(), reference, elem.name());
         }
         Ok(())
     }
