@@ -29,6 +29,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
         cg!(self, r#"#include "{}.h""#, packet.filename());
         cg!(self);
+        cg!(self, "using namespace RoseCommon;");
         cg!(self, "using namespace RoseCommon::Packet;");
         cg!(self);
 
