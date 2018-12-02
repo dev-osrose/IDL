@@ -31,7 +31,11 @@ impl Reader {
 
     fn read(&mut self) -> Result<Packet, ::failure::Error> {
         if let XmlEvent::StartDocument{..} = self.next()? {
-            match self.required(&[ ("packet", &::parse::parse_packet) ]) {
+            match self.required(&[
+                                ("packet", &::parse::parse_packet),
+                                ("simpleType", &::parse::parse_simple_type),
+                                ("complexType", &::parse::parse_complex_type)
+            ]) {
                 Ok(packet) => return Ok(packet),
                 Err(err)   => {
                     use super::xml::common::Position;

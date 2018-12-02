@@ -10,6 +10,20 @@ pub fn parse_packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
     packet(r, attrs)
 }
 
+pub fn parse_simple_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+    use self::PacketContent::*;
+    let mut packet = Packet::new("tmp".to_string());
+    packet.add_content(SimpleType(simple_type(r, attrs)?));
+    Ok(packet)
+}
+
+pub fn parse_complex_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+    use self::PacketContent::*;
+    let mut packet = Packet::new("tmp".to_string());
+    packet.add_content(ComplexType(complex_type(r, attrs)?));
+    Ok(packet)
+}
+
 #[derive(Debug)]
 enum Either<A: Debug, B: Debug> {
     A(A),
@@ -117,7 +131,7 @@ fn include(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
 }
 
 fn include_xml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
-    let path = attrs.get("location")?;
+    let path = attrs.get("path")?;
     Ok(PacketContent::IncludeXml(path))
 }
 
