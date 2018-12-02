@@ -192,6 +192,8 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
     let reference = attrs.get_or("ref", false);
+    let read_write = attrs.get_opt("readWrite");
+    let enum_type = attrs.get_opt("enum");
     let mut doc = None;
     let init = match default {
         Some(def) => {
@@ -221,7 +223,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
             }
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs, size_occurs, reference);
+        let mut elem = Element::new(type_, init, occurs, size_occurs, reference, read_write, enum_type);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }

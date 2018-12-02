@@ -60,7 +60,8 @@ pub struct Element {
     anonymous: bool,
     reference: bool,
     enum_type: Option<String>,
-    is_defined: bool
+    is_defined: bool,
+    special_read_write: Option<String>
 }
 
 #[derive(Debug)]
@@ -287,10 +288,11 @@ impl Element {
                , size_occurs: Option<String>
                , doc: Option<String>
                , anonymous: bool
-               , reference: bool) -> Self {
+               , reference: bool
+               , special_read_write: Option<String>) -> Self {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
-                 is_defined: false }
+                 is_defined: false, special_read_write }
     }
     
     pub fn name(&self) -> &String {
@@ -343,6 +345,14 @@ impl Element {
 
     pub fn size_occurs(&self) -> &Option<String> {
         &self.size_occurs
+    }
+
+    pub fn read_write(&self) -> &Option<String> {
+        &self.special_read_write
+    }
+
+    pub fn set_read_write(&mut self, read_write: String) {
+        self.special_read_write = Some(read_write);
     }
 }
 

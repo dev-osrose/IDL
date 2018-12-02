@@ -113,7 +113,9 @@ pub struct Element {
     doc: Option<String>,
     occurs: Option<Occurs>,
     size_occurs: Option<String>,
-    reference: bool
+    reference: bool,
+    special_read_write: Option<String>,
+    enum_type: Option<String>
 }
 
 #[derive(Debug)]
@@ -277,14 +279,17 @@ impl Choice {
 }
 
 impl Element {
-    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, size_occurs: Option<String>, reference: bool) -> Self {
+    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, size_occurs: Option<String>, reference: bool,
+               special_read_write: Option<String>, enum_type: Option<String>) -> Self {
         Element {
             type_: type_,
             occurs: occurs,
             size_occurs: size_occurs,
             doc: None,
             init: init,
-            reference: reference
+            reference: reference,
+            special_read_write,
+            enum_type
         }
     }
 
@@ -314,6 +319,22 @@ impl Element {
 
     pub fn size_occurs(&self) -> &Option<String> {
         &self.size_occurs
+    }
+
+    pub fn read_write(&self) -> &Option<String> {
+        &self.special_read_write
+    }
+
+    pub fn set_read_write(&mut self, read_write: String) {
+        self.special_read_write = Some(read_write);
+    }
+
+    pub fn enum_type(&self) -> &Option<String> {
+        &self.enum_type
+    }
+
+    pub fn set_enum_type(&mut self, enum_type: String) {
+        self.enum_type = Some(enum_type);
     }
 }
 

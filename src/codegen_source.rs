@@ -60,7 +60,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if let Some(ref enum_type) = elem.enum_type() {
+                    let base = if let Some(ref read_write) = elem.read_write() {
+                        read_write.clone()
+                    } else if let Some(ref enum_type) = elem.enum_type() {
                         enum_type.clone()
                     } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                         "iserialize".to_owned()
@@ -423,7 +425,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if let Some(ref enum_type) = elem.enum_type() {
+                    let base = if let Some(ref read_write) = elem.read_write() {
+                        read_write.clone()
+                    } else if let Some(ref enum_type) = elem.enum_type() {
                         enum_type.clone()
                     } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                         "iserialize".to_owned()
