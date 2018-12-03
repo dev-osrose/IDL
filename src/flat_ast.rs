@@ -20,7 +20,8 @@ pub struct ComplexType {
     name: String,
     content: ComplexTypeContent,
     doc: Option<String>,
-    anonymous: bool
+    anonymous: bool,
+    inline: bool
 }
 
 #[derive(Debug)]
@@ -37,7 +38,8 @@ pub struct Sequence {
     elements: Vec<Element>,
     doc: Option<String>,
     occurs: Option<Occurs>,
-    size_occurs: Option<String>
+    size_occurs: Option<String>,
+    inline: bool
 }
 
 #[derive(Debug)]
@@ -191,9 +193,10 @@ impl ComplexType {
         name: String,
         content: ComplexTypeContent,
         doc: Option<String>,
-        anonymous: bool
+        anonymous: bool,
+        inline: bool
     ) -> Self {
-        ComplexType{ name, content, doc, anonymous }
+        ComplexType{ name, content, doc, anonymous, inline }
     }
 
     pub fn name(&self) -> &String {
@@ -215,15 +218,20 @@ impl ComplexType {
     pub fn anonymous(&self) -> bool {
         self.anonymous
     }
+
+    pub fn inline(&self) -> bool {
+        self.inline
+    }
 }
 
 impl Sequence {
     pub fn new(
         occurs: Option<Occurs>,
         size_occurs: Option<String>,
-        doc: Option<String>
+        doc: Option<String>,
+        inline: bool
     ) -> Self {
-        Sequence{ elements: Vec::new(), occurs, size_occurs, doc }
+        Sequence{ elements: Vec::new(), occurs, size_occurs, doc, inline }
     }
 
     pub fn add_element(&mut self, element: Element) {
@@ -248,6 +256,14 @@ impl Sequence {
 
     pub fn size_occurs(&self) -> &Option<String> {
         &self.size_occurs
+    }
+
+    pub fn inline(&self) -> bool {
+        self.inline
+    }
+
+    pub fn set_inline(&mut self, inline: bool) {
+        self.inline = inline;
     }
 }
 

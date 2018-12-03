@@ -1,6 +1,7 @@
 use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
+use std::collections::HashSet;
 
 pub (super) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>
@@ -33,6 +34,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "using namespace RoseCommon::Packet;");
         cg!(self);
 
+        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
+
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -46,7 +49,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Complex(complex) => self.complex_type(complex, packet.class_name())?,
+                Complex(complex) => self.complex_type(complex, packet.class_name(), &iserialize)?,
                 _ => {}
             }
         }
@@ -56,7 +59,6 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self);
         cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
         self.indent();
-        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -152,7 +154,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
         self.create(packet)?;
         cg!(self);
-        self.pack(packet)?;
+        self.pack(packet, &iserialize)?;
         cg!(self);
         cg!(self, "constexpr size_t {}::size() {{", packet.class_name());
         self.indent();
@@ -166,6 +168,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 self::PacketContent::Element(elem) => {
                     if elem.type_() == "std::string" {
                         continue;
+                    }
+                    if let Some(ref size) = elem.size_occurs() {
+                        cg!(self, "size += sizeof({});", size);
                     }
                     let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
@@ -189,66 +194,70 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "return size;");
         self.dedent();
         cg!(self, "}}");
+        cg!(self);
         Ok(())
     }
 
-    fn complex_type(&mut self, complex: &ComplexType, class_name: &str) -> Result<()> {
+    fn complex_type(&mut self, complex: &ComplexType, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         let class_name = class_name.to_owned() + "::" + complex.name();
-        match complex.content() {
-            Seq(ref s) => {
-                for elem in s.elements() {
-                    self.elem_setter(elem, &class_name, false)?;
-                    self.elem_getter(elem, &class_name, false)?;
-                }
-                self.pack_sequence(s, &class_name)?;
-                cg!(self);
-                self.read_sequence(s, &class_name)?;
-                cg!(self);
-                cg!(self, "constexpr size_t {}::size() {{", class_name);
-                self.indent();
-                let iserialize = s.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
-                cg!(self, "size_t size = 0;");
-                for elem in s.elements() {
-                    if elem.type_() == "std::string" {
-                        continue;
+        if complex.inline() == false {
+            match complex.content() {
+                Seq(ref s) => {
+                    for elem in s.elements() {
+                        self.elem_setter(elem, &class_name, false)?;
+                        self.elem_getter(elem, &class_name, false)?;
                     }
-                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
-                        format!("{}::size()", elem.type_())
-                    } else {
-                        format!("sizeof({})", elem.type_())
-                    };
-                    let rhs = if let Some(ref o) = elem.occurs() {
-                        use ::flat_ast::Occurs::*;
-                        match o {
-                            Unbounded => rhs,
-                            Num(n) => rhs + " * " + n
+                    self.pack_sequence(s, &class_name, iserialize)?;
+                    cg!(self);
+                    self.read_sequence(s, &class_name, iserialize)?;
+                    cg!(self);
+                    cg!(self, "constexpr size_t {}::size() {{", class_name);
+                    self.indent();
+                    cg!(self, "size_t size = 0;");
+                    for elem in s.elements() {
+                        if elem.type_() == "std::string" {
+                            continue;
                         }
-                    } else {
-                        rhs
-                    };
-                    cg!(self, "size += {};", rhs);
-                }
-                cg!(self, "return size;");
-                self.dedent();
-                cg!(self, "}}");
-            },
-            Choice(ref c) => {
-                for elem in c.elements() {
-                    self.elem_setter(elem, &class_name, true)?;
-                    self.elem_getter(elem, &class_name, true)?;
-                }
-                self.pack_choice(c, &class_name)?;
-                cg!(self);
-                self.read_choice(c, &class_name)?;
-                cg!(self);
-                cg!(self, "constexpr size_t {}::size() {{", class_name);
-                self.indent();
-                cg!(self, "return sizeof(data);");
-                self.dedent();
-                cg!(self, "}}");
-            },
-            Empty => {}
+                        let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                            format!("{}::size()", elem.type_())
+                        } else {
+                            format!("sizeof({})", elem.type_())
+                        };
+                        let rhs = if let Some(ref o) = elem.occurs() {
+                            use ::flat_ast::Occurs::*;
+                            match o {
+                                Unbounded => rhs,
+                                Num(n) => rhs + " * " + n
+                            }
+                        } else {
+                            rhs
+                        };
+                        cg!(self, "size += {};", rhs);
+                    }
+                    cg!(self, "return size;");
+                    self.dedent();
+                    cg!(self, "}}");
+                    cg!(self);
+                },
+                Choice(ref c) => {
+                    for elem in c.elements() {
+                        self.elem_setter(elem, &class_name, true)?;
+                        self.elem_getter(elem, &class_name, true)?;
+                    }
+                    self.pack_choice(c, &class_name)?;
+                    cg!(self);
+                    self.read_choice(c, &class_name)?;
+                    cg!(self);
+                    cg!(self, "constexpr size_t {}::size() {{", class_name);
+                    self.indent();
+                    cg!(self, "return sizeof(data);");
+                    self.dedent();
+                    cg!(self, "}}");
+                    cg!(self);
+                },
+                Empty => {}
+            }
         }
         Ok(())
     }
@@ -256,7 +265,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn simple_type(&mut self, simple: &SimpleType, class_name: &str) -> Result<()> {
         for content in simple.contents() {
             match content {
-                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name(), class_name)?            }
+                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name(), class_name)?
+            }
         }
         Ok(())
     }
@@ -418,10 +428,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn pack(&mut self, packet: &Packet) -> Result<()> {
+    fn pack(&mut self, packet: &Packet, iserialize: &HashSet<String>) -> Result<()> {
         cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
         self.indent();
-        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -476,10 +485,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn pack_sequence(&mut self, packet: &Sequence, class_name: &str) -> Result<()> {
+    fn pack_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
-        let iserialize = packet.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
         for elem in packet.elements() {
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
@@ -527,10 +535,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn read_sequence(&mut self, packet: &Sequence, class_name: &str) -> Result<()> {
+    fn read_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
-        let iserialize = packet.elements().iter().filter_map(|elem| if elem.is_defined() { Some(elem.type_().to_owned()) } else { None}).collect::<::std::collections::HashSet<String>>();
         for elem in packet.elements() {
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
@@ -705,6 +712,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             cg!(self, "return size;");
             self.dedent();
             cg!(self, "}}");
+            cg!(self);
         }
         Ok(())
     }

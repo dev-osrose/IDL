@@ -142,12 +142,17 @@ fn flatten_enum(e: &ast::Enumeration, enum_id: &mut i64) -> flat_ast::Enumeratio
 fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
     use flat_ast::ComplexTypeContent::*;
     use self::ast::ComplexTypeContent;
+    let mut inline = false;
     let content = match c.content() {
         ComplexTypeContent::Choice(ref c) => Choice(flatten_choice(c, ctx)),
-        ComplexTypeContent::Seq(ref s) => Seq(flatten_seq(s, ctx)),
+        ComplexTypeContent::Seq(ref s) => {
+            let seq = flatten_seq(s, ctx);
+            inline = seq.inline();
+            Seq(seq)
+        },
         ComplexTypeContent::Empty => Empty
     };
-    let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false);
+    let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(cot));
 }
 
@@ -173,18 +178,23 @@ fn flatten_anon_complex(c: &ast::AnonComplexType, ctx: &mut Context, element_nam
         path.to_string()
     };
     ctx.path.push(path);
+    let mut inline = false;
     let content = match c.content() {
         ComplexTypeContent::Choice(ref c) => Choice(flatten_choice(c, ctx)),
-        ComplexTypeContent::Seq(ref s) => Seq(flatten_seq(s, ctx)),
+        ComplexTypeContent::Seq(ref s) => {
+            let seq = flatten_seq(s, ctx);
+            inline = seq.inline();
+            Seq(seq)
+        },
         ComplexTypeContent::Empty => Empty
     };
     let name = ctx.get_anon_name();
     ctx.path.pop();
-    flat_ast::ComplexType::new(name, content, c.doc().clone(), true)
+    flat_ast::ComplexType::new(name, content, c.doc().clone(), true, inline)
 }
 
 fn flatten_seq(s: &ast::Sequence, ctx: &mut Context) -> flat_ast::Sequence {
-    let mut seq = flat_ast::Sequence::new(s.occurs().clone(), s.size_occurs().clone(), s.doc().clone());
+    let mut seq = flat_ast::Sequence::new(s.occurs().clone(), s.size_occurs().clone(), s.doc().clone(), s.inline());
     let mut max_id = 0;
     for content in s.contents() {
         let element = flatten_seq_content(content, ctx, max_id);
@@ -210,7 +220,7 @@ fn flatten_choice(c: &ast::Choice, ctx: &mut Context) -> flat_ast::Choice {
 }
 
 fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> flat_ast::Element {
-    let (name, occurs, size_occurs, doc, content) = match c {
+    let (name, occurs, size_occurs, doc, content, inline) = match c {
         ast::SequenceContent::Element(ref element) => {
             return flatten_element(element, ctx, id);
         },
@@ -223,22 +233,23 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
             let name = ctx.get_anon_name();
             ctx.path.pop();
             let content = flat_ast::ComplexTypeContent::Choice(choice);
-            (name, occurs, size_occurs, doc, content)
+            (name, occurs, size_occurs, doc, content, false)
         },
         ast::SequenceContent::Seq(ref seq) => {
             ctx.path.push("Sequence".to_string());
             let seq = flatten_seq(seq, ctx);
+            let inline = seq.inline();
             let occurs = seq.occurs().clone();
             let size_occurs = seq.size_occurs().clone();
             let doc = seq.doc().clone();
             let name = ctx.get_anon_name();
             ctx.path.pop();
             let content = flat_ast::ComplexTypeContent::Seq(seq);
-            (name, occurs, size_occurs, doc, content)
+            (name, occurs, size_occurs, doc, content, inline)
         }
     };
 
-    let complex = flat_ast::ComplexType::new(name.clone(), content, doc.clone(), true);
+    let complex = flat_ast::ComplexType::new(name.clone(), content, doc.clone(), true, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(complex));
     flat_ast::Element::new(name.clone(), name.clone(), id,
         flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None, None)

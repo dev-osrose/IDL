@@ -81,7 +81,8 @@ pub struct Sequence {
     occurs: Option<Occurs>,
     size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
-    doc: Option<String>
+    doc: Option<String>,
+    inline: bool
 }
 
 #[derive(Debug)]
@@ -210,12 +211,13 @@ impl AnonComplexType {
 }
 
 impl Sequence {
-    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>) -> Self {
+    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>, inline: bool) -> Self {
         Sequence {
             contents: Vec::new(),
             occurs: occurs,
             size_occurs: size_occurs,
-            doc: doc
+            doc: doc,
+            inline
         }
     }
 
@@ -241,6 +243,14 @@ impl Sequence {
 
     pub fn size_occurs(&self) -> &Option<String> {
         &self.size_occurs
+    }
+
+    pub fn inline(&self) -> bool {
+        self.inline
+    }
+
+    pub fn set_inline(&mut self, inline: bool) {
+        self.inline = inline;
     }
 }
 

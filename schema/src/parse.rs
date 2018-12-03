@@ -75,8 +75,9 @@ fn complex_content(r: &mut Reader) -> Result<(ComplexTypeContent, Option<String>
 fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
+    let inline = attrs.parse_opt("inline")?.unwrap_or(false);
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
-    let mut seq = Sequence::new(occurs, size_occurs, doc);
+    let mut seq = Sequence::new(occurs, size_occurs, doc, inline);
     for content in contents {
         seq.add_content(content);
     }
