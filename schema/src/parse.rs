@@ -194,6 +194,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let reference = attrs.get_or("ref", false);
     let read_write = attrs.get_opt("readWrite");
     let enum_type = attrs.get_opt("enum");
+    let bits = attrs.parse_opt("bits")?;
     let mut doc = None;
     let init = match default {
         Some(def) => {
@@ -223,7 +224,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
             }
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs, size_occurs, reference, read_write, enum_type);
+        let mut elem = Element::new(type_, init, occurs, size_occurs, reference, read_write, enum_type, bits);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }

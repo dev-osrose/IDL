@@ -221,7 +221,8 @@ namespace Packet {{
                 Num(n) => { cg!(self, "{} {}[{}];", elem.type_(), elem.name(), n); }
             }
         } else {
-            cg!(self, "{} {};", elem.type_(), elem.name());
+            let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
+            cg!(self, "{} {}{};", elem.type_(), elem.name(), bits);
         }
         Ok(())
     }

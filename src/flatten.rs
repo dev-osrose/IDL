@@ -241,7 +241,7 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
     let complex = flat_ast::ComplexType::new(name.clone(), content, doc.clone(), true);
     ctx.add_content(flat_ast::PacketContent::Complex(complex));
     flat_ast::Element::new(name.clone(), name.clone(), id,
-        flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None)
+        flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None, None)
 }
 
 fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast::Element {
@@ -268,7 +268,7 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
     };
     let mut element = flat_ast::Element::new(name, type_, id, init, elem.occurs().clone(),
         elem.size_occurs().clone(), elem.doc().clone(), anonymous, elem.reference(),
-        elem.read_write().clone());
+        elem.read_write().clone(), elem.bits());
     if let Some(ref t) = elem.enum_type() {
         element.set_enum_type(t.clone());
     }

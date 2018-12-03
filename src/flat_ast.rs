@@ -61,7 +61,8 @@ pub struct Element {
     reference: bool,
     enum_type: Option<String>,
     is_defined: bool,
-    special_read_write: Option<String>
+    special_read_write: Option<String>,
+    bits: Option<u32>
 }
 
 #[derive(Debug)]
@@ -289,10 +290,11 @@ impl Element {
                , doc: Option<String>
                , anonymous: bool
                , reference: bool
-               , special_read_write: Option<String>) -> Self {
+               , special_read_write: Option<String>
+               , bits: Option<u32>) -> Self {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
-                 is_defined: false, special_read_write }
+                 is_defined: false, special_read_write, bits }
     }
     
     pub fn name(&self) -> &String {
@@ -353,6 +355,14 @@ impl Element {
 
     pub fn set_read_write(&mut self, read_write: String) {
         self.special_read_write = Some(read_write);
+    }
+
+    pub fn bits(&self) -> Option<u32> {
+        self.bits
+    }
+
+    pub fn set_bits(&mut self, bits: u32) {
+        self.bits = Some(bits);
     }
 }
 
