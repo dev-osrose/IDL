@@ -242,8 +242,15 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 },
                 Choice(ref c) => {
                     for elem in c.elements() {
-                        self.elem_setter(elem, &class_name, true)?;
-                        self.elem_getter(elem, &class_name, true)?;
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            for e in seq.elements() {
+                                self.elem_setter(e, &class_name, true)?;
+                                self.elem_getter(e, &class_name, true)?;
+                            }
+                        } else {
+                            self.elem_setter(elem, &class_name, true)?;
+                            self.elem_getter(elem, &class_name, true)?;
+                        }
                     }
                     self.pack_choice(c, &class_name)?;
                     cg!(self);

@@ -33,7 +33,7 @@ pub enum ComplexTypeContent {
 
 pub use ::packet_schema::ast::Occurs;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sequence {
     elements: Vec<Element>,
     doc: Option<String>,
@@ -47,10 +47,11 @@ pub struct Choice {
     elements: Vec<Element>,
     doc: Option<String>,
     occurs: Option<Occurs>,
-    size_occurs: Option<String>
+    size_occurs: Option<String>,
+    inline_seqs: ::std::collections::HashMap<String, Sequence>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Element {
     name: String,
     type_: String,
@@ -270,7 +271,7 @@ impl Sequence {
 impl Choice {
     pub fn new( occurs: Option<Occurs>, size_occurs: Option<String>
               , doc: Option<String>) -> Self {
-        Choice{ elements: Vec::new(), occurs, size_occurs, doc }
+        Choice{ elements: Vec::new(), occurs, size_occurs, doc, inline_seqs: ::std::collections::HashMap::new() }
     }
 
     pub fn add_element(&mut self, element: Element) {
@@ -295,6 +296,14 @@ impl Choice {
 
     pub fn size_occurs(&self) -> &Option<String> {
         &self.size_occurs
+    }
+
+    pub fn inline_seqs(&self) -> &::std::collections::HashMap<String, Sequence> {
+        &self.inline_seqs
+    }
+
+    pub fn add_inline_seqs(&mut self, name: String, seq: Sequence) {
+        self.inline_seqs.insert(name, seq);
     }
 }
 

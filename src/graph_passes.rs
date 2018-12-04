@@ -6,7 +6,8 @@ struct NodeId(usize);
 
 #[derive(Debug)]
 struct Edge {
-    to: NodeId
+    to: NodeId,
+    inline: bool
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -34,7 +35,8 @@ struct Node {
     prune: bool,
     type_: NodeType,
     type_name: String,
-    is_defined: bool
+    is_defined: bool,
+    inline: bool
 }
 
 #[derive(Debug)]
@@ -75,7 +77,7 @@ impl Graph {
         Ok(node)
     }
 
-    fn add_node(&mut self, name: &str, type_: NodeType, type_name: &str) {
+    fn add_node(&mut self, name: &str, type_: NodeType, type_name: &str, inline: bool) {
         let id = NodeId(self.nodes.len());
         let node = Node {
             id,
@@ -85,6 +87,7 @@ impl Graph {
             edges: BTreeMap::new(),
             color: Color::White,
             prune: true,
+            inline,
             is_defined: match type_ {
                 NodeType::TySimple | NodeType::TyEnum | NodeType::TySeq | NodeType::TyChoice => true,
                 _ => false
@@ -97,7 +100,7 @@ impl Graph {
         for elem in elements {
             let node = self.find_node(elem.type_());
             if let Some(to) = node {
-                let edge = Edge { to };
+                let edge = Edge { to, inline: self.nodes[to.0].inline };
                 let from_node = &mut self.nodes[from_node.0];
                 from_node.edges.insert(elem.id(), edge);
             }
@@ -180,17 +183,17 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                     }
                 }
                 if let Some(enum_type) = enum_type {
-                    graph.add_node(s.name(), TyEnum, enum_type);
+                    graph.add_node(s.name(), TyEnum, enum_type, false);
                 } else {
-                    graph.add_node(s.name(), TySimple, s.name());
+                    graph.add_node(s.name(), TySimple, s.name(), false);
                 }
             },
             Complex(ref c) => {
                 use self::ComplexTypeContent::*;
                 match c.content() {
-                    Seq(_) => graph.add_node(c.name(), TySeq, c.name()),
-                    Choice(_) => graph.add_node(c.name(), TyChoice, c.name()),
-                    Empty => graph.add_node(c.name(), TyEmpty, c.name())
+                    Seq(s) => graph.add_node(c.name(), TySeq, c.name(), s.inline()),
+                    Choice(_) => graph.add_node(c.name(), TyChoice, c.name(), false),
+                    Empty => graph.add_node(c.name(), TyEmpty, c.name(), false)
                 }
             },
             _ => {}
@@ -222,9 +225,57 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
 
     graph.run();
 
+    let mut sequences = ::std::collections::HashMap::<String, Vec<Sequence>>::new();
+
+    for content in packet.contents() {
+        match content {
+            PacketContent::Complex(c) => {
+                match c.content() {
+                    ComplexTypeContent::Choice(_) => {
+                        for content in packet.contents().iter() {
+                            match content {
+                                PacketContent::Complex(c) => match c.content() {
+                                    ComplexTypeContent::Seq(ccc) => {
+                                        if sequences.contains_key(c.name()) {
+                                            sequences.get_mut(c.name()).unwrap().push(ccc.clone());
+                                        }
+                                        sequences.insert(c.name().to_string(), vec![ccc.clone()]);
+                                    },
+                                    _ => {}
+                                },
+                                _ => {}
+                            }
+                        }
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+    }
+
     for content in packet.contents_mut() {
         match content {
             PacketContent::Complex(ref mut c) => {
+                let name = c.name().clone();
+                match c.content_mut() {
+                    ComplexTypeContent::Choice(ref mut cc) => {
+                        let node = graph.get_node(&name);
+                        if let Ok(node) = node {
+                            for edge in graph.nodes[node.0].edges.iter() {
+                                if edge.1.inline {
+                                    let name = &graph.nodes[edge.1.to.0].name;
+                                    if let Some(seq) = sequences.remove(name) {
+                                        for s in seq {
+                                            cc.add_inline_seqs(name.clone(), s);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    _ => {}
+                }
             },
             PacketContent::Simple(ref mut s) => {
             },

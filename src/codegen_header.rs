@@ -178,8 +178,15 @@ namespace Packet {{
                 },
                 Choice(ref c) => {
                     for elem in c.elements() {
-                        self.elem_setter(elem)?;
-                        self.elem_getter(elem)?;
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            for e in seq.elements() {
+                                self.elem_setter(e)?;
+                                self.elem_getter(e)?;
+                            }
+                        } else {
+                            self.elem_setter(elem)?;
+                            self.elem_getter(elem)?;
+                        }
                     }
                     cg!(self);
                     cg!(self, "private:");
@@ -187,7 +194,17 @@ namespace Packet {{
                     cg!(self, "union {{");
                     self.indent();
                     for elem in c.elements() {
-                        self.element(elem)?;
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, "PACK(struct {{");
+                            self.indent();
+                            for e in seq.elements() {
+                                self.element(e)?;
+                            }
+                            self.dedent();
+                            cg!(self, "}});");
+                        } else {
+                            self.element(elem)?;
+                        }
                     }
                     self.dedent();
                     cg!(self, "}} data;");
@@ -197,21 +214,8 @@ namespace Packet {{
             }
             self.dedent();
             cg!(self, "}};");
-        } else {
-            cg!(self, "PACK(struct {} {{", complex.name());
-            self.indent();
-            match complex.content() {
-                Seq(ref s) => {
-                    for elem in s.elements() {
-                        self.element(elem)?;
-                    }
-                },
-                _ => {}
-            }
-            self.dedent();
-            cg!(self, "}});");
+            cg!(self);
         }
-        cg!(self);
         Ok(())
     }
 
