@@ -566,7 +566,33 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn pack_choice(&mut self, packet: &Choice, class_name: &str) -> Result<()> {
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
-        self.write_if_else("!writer.set_union(data)", &[
+        let max_size = packet.elements().iter().fold(0, |size, elem| {
+            let s = if elem.type_() == "uint8_t" {
+                8
+            } else if elem.type_() == "uint16_t" {
+                16
+            } else if elem.type_() == "uint32_t" || elem.type_() == "float" {
+                32
+            } else if elem.type_() == "uint64_t" || elem.type_() == "double" {
+                64
+            } else {
+                0
+            };
+            let s = if let Some(bits) = elem.bits() { s - bits } else { s };
+            if size > s {
+                size
+            } else {
+                s
+            }
+        });
+        let max_size = match max_size {
+            8 => "uint8_t",
+            16 => "uint16_t",
+            32 => "uint32_t",
+            64 => "uint64_t",
+            _ => panic!("Not a normal size for union!")
+        };
+        self.write_if_else(&format!("!writer.set_{}(data)", max_size), &[
                 "return false;"
             ], None)?;
         cg!(self, "return true;");
@@ -578,7 +604,33 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn read_choice(&mut self, packet: &Choice, class_name: &str) -> Result<()> {
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
-        self.write_if_else("!reader.get_union(data)", &[
+        let max_size = packet.elements().iter().fold(0, |size, elem| {
+            let s = if elem.type_() == "uint8_t" {
+                8
+            } else if elem.type_() == "uint16_t" {
+                16
+            } else if elem.type_() == "uint32_t" || elem.type_() == "float" {
+                32
+            } else if elem.type_() == "uint64_t" || elem.type_() == "double" {
+                64
+            } else {
+                0
+            };
+            let s = if let Some(bits) = elem.bits() { s - bits } else { s };
+            if size > s {
+                size
+            } else {
+                s
+            }
+        });
+        let max_size = match max_size {
+            8 => "uint8_t",
+            16 => "uint16_t",
+            32 => "uint32_t",
+            64 => "uint64_t",
+            _ => panic!("Not a normal size for union!")
+        };
+        self.write_if_else(&format!("!reader.get_{}(data)", max_size), &[
                 "return false;"
             ], None)?;
         cg!(self, "return true;");
