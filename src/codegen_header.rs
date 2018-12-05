@@ -241,7 +241,11 @@ namespace Packet {{
             }
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
-            cg!(self, "{} {}{};", elem.type_(), elem.name(), bits);
+            let default = match elem.init() {
+                self::ElementInitValue::Default(d) => " = ".to_string() + d,
+                _ => "".to_string()
+            };
+            cg!(self, "{} {}{}{};", elem.type_(), elem.name(), bits, default);
         }
         Ok(())
     }
