@@ -87,7 +87,7 @@ fn flatten_(search_path: &str, packet: &ast::Packet, ctx: &mut Context) -> Resul
             },
             ast::PacketContent::ComplexType(ref complex) => {
                 ctx.path = vec![complex.name().clone()];
-                let complex = flatten_complex(complex, ctx);
+                let _complex = flatten_complex(complex, ctx);
             },
             ast::PacketContent::Element(ref element) => {
                 let element = flatten_element(element, ctx, 0);

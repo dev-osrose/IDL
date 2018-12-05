@@ -291,7 +291,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                     _ => {}
                 }
             },
-            PacketContent::Simple(ref mut s) => {
+            PacketContent::Simple(ref mut _s) => {
             },
             PacketContent::Element(ref mut e) => {
                 let node = graph.get_node(e.type_());

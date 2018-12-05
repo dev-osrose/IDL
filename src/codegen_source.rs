@@ -278,7 +278,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn element(&mut self, elem: &Element) -> Result<()> {
+    #[allow(dead_code)]
+    fn element(&mut self, _elem: &Element) -> Result<()> {
         Ok(())
     }
 

@@ -115,6 +115,7 @@ impl PacketContent {
     }
 
     #[inline]
+    #[allow(dead_code)]
     pub fn enum_type(content: &PacketContent) -> Option<String> {
         match content {
             PacketContent::Element(elem) => elem.enum_type().to_owned(),
@@ -204,6 +205,7 @@ impl ComplexType {
         &self.name
     }
 
+    #[allow(dead_code)]
     pub fn doc(&self) -> &Option<String> {
         &self.doc
     }
@@ -216,6 +218,7 @@ impl ComplexType {
         &mut self.content
     }
 
+    #[allow(dead_code)]
     pub fn anonymous(&self) -> bool {
         self.anonymous
     }
@@ -263,6 +266,7 @@ impl Sequence {
         self.inline
     }
 
+    #[allow(dead_code)]
     pub fn set_inline(&mut self, inline: bool) {
         self.inline = inline;
     }
@@ -282,6 +286,7 @@ impl Choice {
         &self.elements
     }
 
+    #[allow(dead_code)]
     pub fn elements_mut(&mut self) -> &mut [Element] {
         &mut self.elements
     }
@@ -378,6 +383,7 @@ impl Element {
         &self.special_read_write
     }
 
+    #[allow(dead_code)]
     pub fn set_read_write(&mut self, read_write: String) {
         self.special_read_write = Some(read_write);
     }
@@ -386,6 +392,7 @@ impl Element {
         self.bits
     }
 
+    #[allow(dead_code)]
     pub fn set_bits(&mut self, bits: u32) {
         self.bits = Some(bits);
     }
