@@ -7,7 +7,8 @@ struct NodeId(usize);
 #[derive(Debug)]
 struct Edge {
     to: NodeId,
-    inline: bool
+    inline: bool,
+    is_defined: bool
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -100,7 +101,7 @@ impl Graph {
         for elem in elements {
             let node = self.find_node(elem.type_());
             if let Some(to) = node {
-                let edge = Edge { to, inline: self.nodes[to.0].inline };
+                let edge = Edge { to, inline: self.nodes[to.0].inline, is_defined: self.nodes[to.0].is_defined };
                 let from_node = &mut self.nodes[from_node.0];
                 from_node.edges.insert(elem.id(), edge);
             }
@@ -128,7 +129,7 @@ impl Graph {
             node.prune = false;
         }
 
-        {
+        let is_defined = {
             let node = &self.nodes[node_id];
             for (elem_id, edge) in &node.edges {
                 let to = &self.nodes[edge.to.0];
@@ -138,10 +139,12 @@ impl Graph {
                     _ => {}
                 }
             }
-        }
+            node.edges.iter().fold(node.is_defined, |d, n| d || self.nodes[n.1.to.0].is_defined)
+        };
 
         {
             let node = &mut self.nodes[node_id];
+            node.is_defined = is_defined;
             for (elem_id, _edge) in node.edges.iter_mut() {
                 if cycles.contains(&elem_id) {
                     // TODO: do something here?
@@ -224,6 +227,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
     }
 
     graph.run();
+    debug!("Graph {:?}", graph);
 
     let mut sequences = ::std::collections::HashMap::<String, Vec<Sequence>>::new();
 
@@ -270,6 +274,16 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                                             cc.add_inline_seqs(name.clone(), s);
                                         }
                                     }
+                                }
+                            }
+                        }
+                    },
+                    ComplexTypeContent::Seq(ref mut cc) => {
+                        for elem in cc.elements_mut() {
+                            let node = graph.get_node(elem.type_());
+                            if let Ok(node) = node {
+                                if graph.nodes[node.0].is_defined {
+                                    elem.set_is_defined();
                                 }
                             }
                         }
