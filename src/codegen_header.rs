@@ -285,9 +285,10 @@ namespace Packet {{
         } else {
             elem.type_().to_owned()
         };
-        let is_const = if elem.reference() { "const " } else { "" };
+        let is_const = if elem.reference() || type_.contains("*") { "const " } else { "" };
         cg!(self, "{}{}{} get_{}() const;", is_const, type_, reference, elem.name());
         let reference = if elem.reference() { "&" } else { "" };
+        let is_const = if elem.reference() { "const " } else { "" };
         if elem.occurs().is_some() {
             cg!(self, "{}{}{} get_{}(size_t index) const;", is_const, elem.type_(), reference, elem.name());
         }
