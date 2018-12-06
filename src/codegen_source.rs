@@ -432,7 +432,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn pack(&mut self, packet: &Packet, iserialize: &HashSet<String>) -> Result<()> {
-        cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
+        if packet.contents().len() == 0 {
+            cg!(self, "void {}::pack(CRoseBasePolicy&) const {{", packet.class_name());
+        } else {
+            cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
+        }
         self.indent();
         for content in packet.contents() {
             use self::PacketContent::*;
