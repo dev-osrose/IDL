@@ -5,7 +5,7 @@ use heck::CamelCase;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 struct NodeId(usize);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Edge {
     to: NodeId,
     inline: bool,
@@ -38,7 +38,8 @@ struct Node {
     type_: NodeType,
     type_name: String,
     is_defined: bool,
-    inline: bool
+    inline: bool,
+    depth: u32
 }
 
 #[derive(Debug)]
@@ -90,6 +91,7 @@ impl Graph {
             color: Color::White,
             prune: true,
             inline,
+            depth: 0,
             is_defined: match type_ {
                 NodeType::TySimple | NodeType::TyEnum | NodeType::TySeq | NodeType::TyChoice => true,
                 _ => false
@@ -167,6 +169,13 @@ impl Graph {
         let node = &mut self.nodes[node_id];
         node.color = Black;
     }
+}
+
+fn visit(node: NodeId, graph: &mut Graph, depth: u32) {
+    for edge in graph.nodes[node.0].edges.clone().values() {
+        visit(edge.to, graph, depth + 1);
+    }
+    graph.nodes[node.0].depth = depth;
 }
 
 pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
@@ -251,6 +260,11 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
     }
 
     graph.run();
+
+    // depth-first, post-traversal dependencies check
+    for node in graph.start_nodes.clone().iter() {
+        visit(*node, &mut graph, 0);
+    }
     debug!("Graph {:?}", graph);
 
     let mut sequences = ::std::collections::HashMap::<String, Vec<Sequence>>::new();
@@ -289,6 +303,23 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             packet.contents_mut().retain(|e| if let Some(ref name) = PacketContent::type_from_name(e) { *name != node.name } else { true });
         }
     }
+
+    packet.contents_mut().sort_by(|a, b| {
+        let node_a = match a {
+            PacketContent::Complex(ref c) => graph.find_node(c.name()),
+            PacketContent::Simple(ref s) => graph.find_node(s.name()),
+            _ => None
+        };
+        let node_b = match b {
+            PacketContent::Complex(ref c) => graph.find_node(c.name()),
+            PacketContent::Simple(ref s) => graph.find_node(s.name()),
+            _ => None
+        };
+        match (node_a, node_b) {
+            (None, None) | (None, _) | (_, None) => ::std::cmp::Ordering::Equal,
+            (Some(NodeId(a)), Some(NodeId(b))) => graph.nodes[b].depth.cmp(&graph.nodes[a].depth)
+        }
+    });
 
     for content in packet.contents_mut() {
         match content {

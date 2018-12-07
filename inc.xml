@@ -1,8 +1,8 @@
-<simpleType name = "B">
-    <restriction base = "int"/>
-</simpleType>
 <simpleType name = "A">
     <restriction base = "B"/>
+</simpleType>
+<simpleType name = "B">
+    <restriction base = "int"/>
 </simpleType>
 <simpleType name = "C">
     <restriction base = "int"/>
