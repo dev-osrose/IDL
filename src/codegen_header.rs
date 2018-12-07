@@ -237,7 +237,7 @@ namespace Packet {{
             use ::flat_ast::Occurs::*;
             match o {
                 Unbounded => { cg!(self, "std::vector<{}> {};", elem.type_(), elem.name()); },
-                Num(n) => { cg!(self, "{} {}[{}];", elem.type_(), elem.name(), n); }
+                Num(n) => { cg!(self, "std::array<{},{}> {};", elem.type_(), n, elem.name()); }
             }
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
@@ -251,21 +251,19 @@ namespace Packet {{
     }
 
     fn elem_setter(&mut self, elem: &Element) -> Result<()> {
-        let mut reference = if elem.reference() { "&" } else { "" };
+        let reference = if elem.reference() { "&" } else { "" };
         use ::flat_ast::Occurs::*;
         let type_ = if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => format!("std::vector<{}>", elem.type_()),
-                Num(_) => {
-                    reference = "";
-                    format!("{}*", elem.type_())
+                Num(n) => {
+                    format!("std::array<{}, {}>", elem.type_(), n)
                 }
             }
         } else {
             elem.type_().to_owned()
         };
         cg!(self, "void set_{}(const {}{});", elem.name(), type_, reference);
-        let reference = if elem.reference() { "&" } else { "" };
         if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => { cg!(self, "void add_{}(const {}{});", elem.name(), elem.type_(), reference); },
@@ -276,22 +274,20 @@ namespace Packet {{
     }
 
     fn elem_getter(&mut self, elem: &Element) -> Result<()> {
-        let mut reference = if elem.reference() { "&" } else { "" };
+        let reference = if elem.reference() { "&" } else { "" };
         let type_ = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
             match o {
                 Unbounded => format!("std::vector<{}>", elem.type_()),
-                Num(_) => {
-                    reference = "";
-                    format!("{}*", elem.type_())
+                Num(n) => {
+                    format!("std::array<{}, {}>", elem.type_(), n)
                 }
             }
         } else {
             elem.type_().to_owned()
         };
-        let is_const = if elem.reference() || type_.contains("*") { "const " } else { "" };
+        let is_const = if elem.reference() { "const " } else { "" };
         cg!(self, "{}{}{} get_{}() const;", is_const, type_, reference, elem.name());
-        let reference = if elem.reference() { "&" } else { "" };
         let is_const = if elem.reference() { "const " } else { "" };
         if elem.occurs().is_some() {
             cg!(self, "{}{}{} get_{}(size_t index) const;", is_const, elem.type_(), reference, elem.name());

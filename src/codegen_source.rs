@@ -284,7 +284,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn elem_setter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
-        let mut reference = if elem.reference() { "&" } else { "" };
+        let reference = if elem.reference() { "&" } else { "" };
         use ::flat_ast::Occurs::*;
         let type_base = if elem.is_defined() {
             class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + elem.type_()
@@ -294,9 +294,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         let type_ = if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
-                Num(_) => {
-                    reference = "";
-                    format!("{}*", type_base)
+                Num(n) => {
+                    format!("std::array<{}, {}>", type_base, n)
                 }
             }
         } else {
@@ -304,24 +303,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         };
         cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), type_, reference);
         self.indent();
-        if let Some(ref o) = elem.occurs() {
-            match o {
-                Unbounded => { cg!(self, "this->{0} = {0};", elem.name()); },
-                Num(n) => {
-                    cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
-                    self.indent();
-                    cg!(self, "this->{0}[index] = {0}[index];", elem.name());
-                    self.dedent();
-                    cg!(self, "}}");
-                }
-            }
-        } else {
-            cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
-        }
+        cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
         cg!(self, "}}");
         cg!(self);
-        let reference = if elem.reference() { "&" } else { "" };
         if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => {
@@ -347,7 +332,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
     fn elem_getter(&mut self, elem: &Element, class_name: &str, is_choice: bool) -> Result<()> {
         use ::flat_ast::Occurs::*;
-        let mut reference = if elem.reference() { "&" } else { "" };
+        let reference = if elem.reference() { "&" } else { "" };
         let type_base = if elem.is_defined() {
             class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + elem.type_()
         } else {
@@ -356,22 +341,20 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         let type_ = if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
-                Num(_) => {
-                    reference = "";
-                    format!("{}*", type_base)
+                Num(n) => {
+                    format!("std::array<{}, {}>", type_base, n)
                 }
             }
         } else {
             type_base.clone()
         };
-        let is_const = if elem.reference() || type_.contains("*") { "const " } else { "" };
+        let is_const = if elem.reference() { "const " } else { "" };
         cg!(self, "{4}{2}{3} {0}::get_{1}() const {{", class_name, elem.name(), type_, reference, is_const);
         self.indent();
         cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
         self.dedent();
         cg!(self, "}}");
         cg!(self);
-        let reference = if elem.reference() { "&" } else { "" };
         let is_const = if elem.reference() { "const " } else { "" };
         if elem.occurs().is_some() {
             cg!(self, "{}{}{} {}::get_{}(size_t index) const {{", is_const, type_base, reference, class_name, elem.name());
@@ -462,7 +445,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
                         match o {
-                            Unbounded => {
+                            Unbounded | Num(_) => {
                                 if let Some(ref s) = elem.size_occurs() {
                                     self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
                                         "return;"
@@ -471,15 +454,6 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 cg!(self, "for (const auto& elem : {}) {{", elem.name());
                                 self.indent();
                                 self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
-                                        "return;"
-                                    ], None)?;
-                                self.dedent();
-                                cg!(self, "}}");
-                            },
-                            Num(n) => {
-                                cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
-                                self.indent();
-                                self.write_if_else(&format!("!writer.set_{}({}[index])", base, elem.name()), &[
                                         "return;"
                                     ], None)?;
                                 self.dedent();

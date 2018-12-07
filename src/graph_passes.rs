@@ -204,6 +204,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
     }
 
     let mut vector = false;
+    let mut array = false;
     for content in packet.contents() {
         match content {
             PacketContent::Complex(ref c) => {
@@ -219,6 +220,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 graph.add_start_node(e.type_());
                 match e.occurs() {
                     Some(self::Occurs::Unbounded) => vector = true,
+                    Some(self::Occurs::Num(_)) => array = true,
                     _ => {}
                 };
             },
@@ -310,6 +312,10 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
 
     if vector {
         packet.add_content(self::PacketContent::Include("vector".to_owned(), true));
+    }
+
+    if array {
+        packet.add_content(self::PacketContent::Include("array".to_owned(), true));
     }
 
     Ok(packet)

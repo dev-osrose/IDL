@@ -1,0 +1,3 @@
+<packet ePacketType = "PAKCS_TEST">
+    <element name = "test" type = "int" occurs = "42" ref = "true" default = "{}" />
+</packet>
