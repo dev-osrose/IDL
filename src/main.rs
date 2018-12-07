@@ -46,7 +46,8 @@ fn main() -> Result<(), failure::Error> {
 
     let verbose = match matches.occurrences_of("v") {
         0 => Level::Info,
-        1 | _ => Level::Debug,
+        1 => Level::Debug,
+        _ => Level::Trace
     };
 
     simple_logger::init_with_level(verbose).unwrap();
