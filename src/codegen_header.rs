@@ -300,7 +300,18 @@ namespace Packet {{
             use self::PacketContent::*;
             match elem {
                 Element(ref e) => match e.init() {
-                        self::ElementInitValue::Create => "const ".to_owned() + e.type_() + "&, ",
+                        self::ElementInitValue::Create => {
+                            if let Some(ref o) = e.occurs() {
+                                use ::flat_ast::Occurs::*;
+                                let t = match o {
+                                    Unbounded => format!("std::vector<{}>", e.type_()),
+                                    Num(n) => format!("std::array<{}, {}>", e.type_(), n)
+                                };
+                                "const ".to_owned() + &t + "&, "
+                            } else {
+                                "const ".to_owned() + e.type_() + "&, "
+                            }
+                        },
                         _ => "".to_owned()
                     },
                 _ => "".to_string()

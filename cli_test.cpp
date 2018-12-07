@@ -31,8 +31,9 @@ const int& CliTest::get_test(size_t index) const {
     return test[index];
 }
 
-CliTest CliTest::create() {
+CliTest CliTest::create(const std::array<int, 42>& test) {
     CliTest packet;
+    packet.set_test(test);
     return packet;
 }
 

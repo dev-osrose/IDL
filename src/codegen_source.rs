@@ -378,7 +378,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         } else {
                             "".to_owned()
                         };
-                        "const ".to_owned() + &base + e.type_() + &format!("& {}, ", e.name())
+                        if let Some(ref o) = e.occurs() {
+                                use ::flat_ast::Occurs::*;
+                                let t = match o {
+                                    Unbounded => format!("std::vector<{}>", e.type_()),
+                                    Num(n) => format!("std::array<{}, {}>", e.type_(), n)
+                                };
+                                "const ".to_owned() + &base + &t + &format!("& {}, ", e.name())
+                            } else {
+                                "const ".to_owned() + &base + e.type_() + &format!("& {}, ", e.name())
+                            }
                     },
                     _ => "".to_owned()
                 },

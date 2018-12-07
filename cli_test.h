@@ -25,7 +25,7 @@ class CliTest : public CRosePacket {
         const int& get_test(size_t index) const;
         
         
-        static CliTest create();
+        static CliTest create(const std::array<int, 42>&);
         static CliTest create(const uint8_t*);
         static std::unique_ptr<CliTest> allocate(const uint8_t*);
     
