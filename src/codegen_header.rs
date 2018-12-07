@@ -317,6 +317,7 @@ namespace Packet {{
         };
         cg!(self, "static {} create({});", packet.class_name(), args);
         cg!(self, "static {} create(const uint8_t*);", packet.class_name());
+        cg!(self, "static std::unique_ptr<{}> allocate(const uint8_t*);", packet.class_name());
         Ok(())
     }
 
