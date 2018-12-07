@@ -175,7 +175,9 @@ fn visit(node: NodeId, graph: &mut Graph, depth: u32) {
     for edge in graph.nodes[node.0].edges.clone().values() {
         visit(edge.to, graph, depth + 1);
     }
-    graph.nodes[node.0].depth = depth;
+    if graph.nodes[node.0].depth < depth {
+        graph.nodes[node.0].depth = depth;
+    }
 }
 
 pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
