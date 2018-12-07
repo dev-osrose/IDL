@@ -1,2 +1,2 @@
 # bugs
-* pruning doesn't work
+* No dependencies update

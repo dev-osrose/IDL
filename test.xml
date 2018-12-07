@@ -1,4 +1,5 @@
 <packet ePacketType = "PAKCS_TEST">
     <includeXml path = "inc.xml"/>
     <element name = "test" type = "int" occurs = "42" ref = "true" />
+    <element name = "test2" type = "A"/>
 </packet>

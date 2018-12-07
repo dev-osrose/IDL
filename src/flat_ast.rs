@@ -181,7 +181,7 @@ impl Packet {
         &self.contents
     }
 
-    pub fn contents_mut(&mut self) -> &mut [PacketContent] {
+    pub fn contents_mut(&mut self) -> &mut Vec<PacketContent> {
         &mut self.contents
     }
 

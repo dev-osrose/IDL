@@ -3,28 +3,6 @@
 using namespace RoseCommon;
 using namespace RoseCommon::Packet;
 
-CliTest::A::A() : is_valid(false) {}
-
-CliTest::A::A(int data) : a(data), is_valid(false) {
-    is_valid = true;
-}
-
-bool CliTest::A::read(CRoseReader& reader) {
-    if (!reader.get_int(a)) return false;
-    is_valid = true;
-    return true;
-}
-
-bool CliTest::A::write(CRoseBasePolicy& writer) const {
-    return true;
-}
-
-constexpr size_t CliTest::A::size() {
-    size_t size = 0;
-    size += sizeof(int);
-    return size;
-}
-
 CliTest::B::B() : is_valid(false) {}
 
 CliTest::B::B(int data) : b(data), is_valid(false) {
@@ -47,25 +25,25 @@ constexpr size_t CliTest::B::size() {
     return size;
 }
 
-CliTest::C::C() : is_valid(false) {}
+CliTest::A::A() : is_valid(false) {}
 
-CliTest::C::C(int data) : c(data), is_valid(false) {
+CliTest::A::A(B data) : a(data), is_valid(false) {
     is_valid = true;
 }
 
-bool CliTest::C::read(CRoseReader& reader) {
-    if (!reader.get_int(c)) return false;
+bool CliTest::A::read(CRoseReader& reader) {
+    if (!reader.get_B(a)) return false;
     is_valid = true;
     return true;
 }
 
-bool CliTest::C::write(CRoseBasePolicy& writer) const {
+bool CliTest::A::write(CRoseBasePolicy& writer) const {
     return true;
 }
 
-constexpr size_t CliTest::C::size() {
+constexpr size_t CliTest::A::size() {
     size_t size = 0;
-    size += sizeof(int);
+    size += sizeof(B);
     return size;
 }
 
@@ -78,6 +56,9 @@ CliTest::CliTest(CRoseReader reader) : CRosePacket(reader) {
         if (!reader.get_int(test[index])) {
             return;
         }
+    }
+    if (!reader.get_iserialize(test2)) {
+        return;
     }
 }
 
@@ -97,9 +78,18 @@ const int& CliTest::get_test(size_t index) const {
     return test[index];
 }
 
-CliTest CliTest::create(const std::array<int, 42>& test) {
+void CliTest::set_test2(const CliTest::A test2) {
+    this->test2 = test2;
+}
+
+CliTest::A CliTest::get_test2() const {
+    return test2;
+}
+
+CliTest CliTest::create(const std::array<int, 42>& test, const CliTest::A& test2) {
     CliTest packet;
     packet.set_test(test);
+    packet.set_test2(test2);
     return packet;
 }
 
@@ -119,11 +109,15 @@ void CliTest::pack(CRoseBasePolicy& writer) const {
             return;
         }
     }
+    if (!writer.set_iserialize(test2)) {
+        return;
+    }
 }
 
 constexpr size_t CliTest::size() {
     size_t size = 0;
     size += sizeof(int) * 42;
+    size += A::size();
     return size;
 }
 

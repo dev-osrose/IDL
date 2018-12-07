@@ -1,5 +1,6 @@
 use ::flat_ast::*;
 use std::collections::{BTreeMap, HashSet};
+use heck::CamelCase;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 struct NodeId(usize);
@@ -106,6 +107,13 @@ impl Graph {
                 from_node.edges.insert(elem.id(), edge);
             }
         }
+    }
+
+    fn add_edge(&mut self, from_node: NodeId, to: NodeId) {
+        let edge = Edge { to, inline: self.nodes[to.0].inline, is_defined: self.nodes[to.0].is_defined };
+        let from_node = &mut self.nodes[from_node.0];
+        let highest = from_node.edges.keys().fold(0, |id, edge| if edge > &id { *edge } else { id }) + 1;
+        from_node.edges.insert(highest, edge);
     }
 
     fn run(&mut self) {
@@ -216,8 +224,22 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                     _ => {}
                 }
             },
+            PacketContent::Simple(ref s) => {
+                use self::SimpleTypeContent::*;
+                for content in s.contents() {
+                    match content {
+                        Restriction(ref r) => {
+                            if let Ok(node) = graph.get_node(&r.base().to_owned().to_camel_case()) {
+                                let to = graph.get_node(s.name()).unwrap();
+                                graph.add_edge(to, node);
+                            }
+                        }
+                    }
+                }
+            },
             PacketContent::Element(ref e) => {
-                graph.add_start_node(e.type_());
+                trace!("adding start node {}", e.type_());
+                graph.add_start_node(&e.type_().to_owned().to_camel_case());
                 match e.occurs() {
                     Some(self::Occurs::Unbounded) => vector = true,
                     Some(self::Occurs::Num(_)) => array = true,
@@ -257,6 +279,14 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 }
             },
             _ => {}
+        }
+    }
+
+    // pruning
+    for node in &graph.nodes {
+        if node.prune {
+            trace!("pruning {}", node.name);
+            packet.contents_mut().retain(|e| if let Some(ref name) = PacketContent::type_from_name(e) { *name != node.name } else { true });
         }
     }
 

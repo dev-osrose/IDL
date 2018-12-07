@@ -237,7 +237,7 @@ namespace Packet {{
             use ::flat_ast::Occurs::*;
             match o {
                 Unbounded => { cg!(self, "std::vector<{}> {};", elem.type_(), elem.name()); },
-                Num(n) => { cg!(self, "std::array<{},{}> {};", elem.type_(), n, elem.name()); }
+                Num(n) => { cg!(self, "std::array<{}, {}> {};", elem.type_(), n, elem.name()); }
             }
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));

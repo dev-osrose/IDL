@@ -18,28 +18,6 @@ class CliTest : public CRosePacket {
         static constexpr size_t size();
         
         
-        struct A : public ISerialize {
-            A();
-            A(int);
-            A(const A&) = default;
-            A(A&&) = default;
-            A& operator=(const A&) = default;
-            A& operator=(A&&) = default;
-            virtual ~A() = default;
-            
-            static constexpr size_t size();
-            
-            operator int() const { return a; }
-            bool isValid() const { return is_valid; }
-            
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            private:
-                int a;
-                bool is_valid;
-        };
-        
         struct B : public ISerialize {
             B();
             B(int);
@@ -62,25 +40,25 @@ class CliTest : public CRosePacket {
                 bool is_valid;
         };
         
-        struct C : public ISerialize {
-            C();
-            C(int);
-            C(const C&) = default;
-            C(C&&) = default;
-            C& operator=(const C&) = default;
-            C& operator=(C&&) = default;
-            virtual ~C() = default;
+        struct A : public ISerialize {
+            A();
+            A(B);
+            A(const A&) = default;
+            A(A&&) = default;
+            A& operator=(const A&) = default;
+            A& operator=(A&&) = default;
+            virtual ~A() = default;
             
             static constexpr size_t size();
             
-            operator int() const { return c; }
+            operator B() const { return a; }
             bool isValid() const { return is_valid; }
             
             virtual bool read(CRoseReader&) override;
             virtual bool write(CRoseBasePolicy&) const override;
             
             private:
-                int c;
+                B a;
                 bool is_valid;
         };
         
@@ -89,9 +67,11 @@ class CliTest : public CRosePacket {
         void set_test(const int&, size_t index);
         const std::array<int, 42>& get_test() const;
         const int& get_test(size_t index) const;
+        void set_test2(const A);
+        A get_test2() const;
         
         
-        static CliTest create(const std::array<int, 42>&);
+        static CliTest create(const std::array<int, 42>&, const A&);
         static CliTest create(const uint8_t*);
         static std::unique_ptr<CliTest> allocate(const uint8_t*);
     
@@ -99,7 +79,8 @@ class CliTest : public CRosePacket {
         virtual void pack(CRoseBasePolicy&) const override;
     
     private:
-        std::array<int,42> test;
+        std::array<int, 42> test;
+        A test2;
 };
 
 }

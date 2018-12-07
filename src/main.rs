@@ -65,6 +65,7 @@ fn main() -> Result<(), failure::Error> {
             continue;
         }
         let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")), &packet)?;
+        trace!("packet {:?}", packet);
         let packet = graph_passes::run(packet)?;
         debug!("packet {:#?}", packet);
         let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;
