@@ -1,0 +1,9 @@
+<simpleType name = "a">
+    <restriction base = "int"/>
+</simpleType>
+<simpleType name = "b">
+    <restriction base = "int"/>
+</simpleType>
+<simpleType name = "c">
+    <restriction base = "int"/>
+</simpleType>

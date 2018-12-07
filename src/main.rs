@@ -63,7 +63,7 @@ fn main() -> Result<(), failure::Error> {
         if packet.type_() == "tmp" {
             continue;
         }
-        let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")).to_str().unwrap(), &packet)?;
+        let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")), &packet)?;
         let packet = graph_passes::run(packet)?;
         debug!("packet {:#?}", packet);
         let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;

@@ -31,19 +31,22 @@ impl Reader {
 
     fn read(&mut self) -> Result<Packet, ::failure::Error> {
         if let XmlEvent::StartDocument{..} = self.next()? {
-            match self.required(&[
+            let mut packet = Packet::new("tmp".to_string());
+            for item in self.map(&[
                                 ("packet", &::parse::parse_packet),
                                 ("simpleType", &::parse::parse_simple_type),
-                                ("complexType", &::parse::parse_complex_type)
-            ]) {
-                Ok(packet) => return Ok(packet),
-                Err(err)   => {
-                    use super::xml::common::Position;
-                    use ::failure::Fail;
-                    let msg = format!("at {} : {}", self.reader.position(), err);
-                    return Err(err.context(msg).into())
+                                ("complexType", &::parse::parse_complex_type),
+                                ("include", &::parse::parse_include),
+                                ("includeXml", &::parse::parse_include_xml)
+            ])? {
+                if item.type_() != "tmp" {
+                    return Ok(item);
+                }
+                for content in item.into_contents() {
+                    packet.add_content(content);
                 }
             }
+            return Ok(packet);
         }
         Err(ParseError::new("Expecting startDocument").into())
     }
@@ -136,7 +139,11 @@ impl Reader {
                     //Store the event so our caller will get it too
                     self.event = Some(event);
                     break
-                }
+                },
+                XmlEvent::EndDocument{..} => {
+                    self.event = Some(event);
+                    break
+                },
                 _ => {
                     //Store the event so it can be retrieved by self.required
                     self.event = Some(event);

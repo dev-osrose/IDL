@@ -24,6 +24,20 @@ pub fn parse_complex_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
     Ok(packet)
 }
 
+pub fn parse_include(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+    use self::PacketContent::*;
+    let mut packet = Packet::new("tmp".to_string());
+    packet.add_content(include(r, attrs)?);
+    Ok(packet)
+}
+
+pub fn parse_include_xml(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+    use self::PacketContent::*;
+    let mut packet = Packet::new("tmp".to_string());
+    packet.add_content(include_xml(r, attrs)?);
+    Ok(packet)
+}
+
 #[derive(Debug)]
 enum Either<A: Debug, B: Debug> {
     A(A),

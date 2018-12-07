@@ -3,6 +3,72 @@
 using namespace RoseCommon;
 using namespace RoseCommon::Packet;
 
+CliTest::A::A() : is_valid(false) {}
+
+CliTest::A::A(int data) : a(data), is_valid(false) {
+    is_valid = true;
+}
+
+bool CliTest::A::read(CRoseReader& reader) {
+    if (!reader.get_int(a)) return false;
+    is_valid = true;
+    return true;
+}
+
+bool CliTest::A::write(CRoseBasePolicy& writer) const {
+    return true;
+}
+
+constexpr size_t CliTest::A::size() {
+    size_t size = 0;
+    size += sizeof(int);
+    return size;
+}
+
+CliTest::B::B() : is_valid(false) {}
+
+CliTest::B::B(int data) : b(data), is_valid(false) {
+    is_valid = true;
+}
+
+bool CliTest::B::read(CRoseReader& reader) {
+    if (!reader.get_int(b)) return false;
+    is_valid = true;
+    return true;
+}
+
+bool CliTest::B::write(CRoseBasePolicy& writer) const {
+    return true;
+}
+
+constexpr size_t CliTest::B::size() {
+    size_t size = 0;
+    size += sizeof(int);
+    return size;
+}
+
+CliTest::C::C() : is_valid(false) {}
+
+CliTest::C::C(int data) : c(data), is_valid(false) {
+    is_valid = true;
+}
+
+bool CliTest::C::read(CRoseReader& reader) {
+    if (!reader.get_int(c)) return false;
+    is_valid = true;
+    return true;
+}
+
+bool CliTest::C::write(CRoseBasePolicy& writer) const {
+    return true;
+}
+
+constexpr size_t CliTest::C::size() {
+    size_t size = 0;
+    size += sizeof(int);
+    return size;
+}
+
 
 
 CliTest::CliTest() : CRosePacket(ePacketType::PAKCS_TEST) {}

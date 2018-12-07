@@ -54,7 +54,7 @@ impl<'a> Context<'a> {
     }
 }
 
-pub fn flatten(search_path: &str, p: &ast::Packet) -> Result<flat_ast::Packet, ::failure::Error> {
+pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_ast::Packet, ::failure::Error> {
     let mut packet = flat_ast::Packet::new(p.type_().clone(), p.doc().clone());
     {
         let mut ctx = Context {
@@ -67,7 +67,7 @@ pub fn flatten(search_path: &str, p: &ast::Packet) -> Result<flat_ast::Packet, :
     Ok(packet)
 }
 
-fn flatten_(search_path: &str, packet: &ast::Packet, ctx: &mut Context) -> Result<(), ::failure::Error> {
+fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Context) -> Result<(), ::failure::Error> {
     for content in packet.contents() {
         use flat_ast::PacketContent::*;
         match content {
@@ -75,8 +75,8 @@ fn flatten_(search_path: &str, packet: &ast::Packet, ctx: &mut Context) -> Resul
                 ctx.add_content(Include(path.clone(), *system));
             },
             ast::PacketContent::IncludeXml(ref location) => {
-                let filenm = format!("{}/{}", search_path, location);
-                debug!("Including {}", filenm);
+                let filenm = search_path.join(::std::path::Path::new(location));
+                debug!("Including {}", filenm.to_str().unwrap());
                 let file = File::open(&filenm)?;
                 let packet = Reader::load_packet(file)?;
                 flatten_(search_path, &packet, ctx)?;

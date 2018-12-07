@@ -158,6 +158,10 @@ impl Packet {
         &self.contents
     }
 
+    pub fn into_contents(self) -> Vec<PacketContent> {
+        self.contents
+    }
+
     pub fn set_doc(&mut self, doc: String) {
         self.doc = Some(doc);
     }
