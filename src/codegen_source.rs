@@ -428,6 +428,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "return {}(reader);", packet.class_name());
         self.dedent();
         cg!(self, "}}");
+        cg!(self);
+        cg!(self, "std::unique_ptr<{0}> {0}::allocate(const uint8_t* buffer) {{", packet.class_name());
+        self.indent();
+        cg!(self, "CRoseReader reader(buffer, CRosePacket::size(buffer));");
+        cg!(self, "return std::make_unique<{}>(reader);", packet.class_name());
+        self.dedent();
+        cg!(self, "}}");
         Ok(())
     }
 
