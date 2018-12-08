@@ -295,6 +295,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
                 Num(n) => {
+                    let n = if let Ok(n) = n.parse::<u32>() {
+                        n.to_string()
+                    } else {
+                        class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + &n
+                    };
                     format!("std::array<{}, {}>", type_base, n)
                 }
             }
@@ -342,6 +347,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
                 Num(n) => {
+                    let n = if let Ok(n) = n.parse::<u32>() {
+                        n.to_string()
+                    } else {
+                        class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + &n
+                    };
                     format!("std::array<{}, {}>", type_base, n)
                 }
             }
@@ -382,7 +392,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 use ::flat_ast::Occurs::*;
                                 let t = match o {
                                     Unbounded => format!("std::vector<{}>", e.type_()),
-                                    Num(n) => format!("std::array<{}, {}>", e.type_(), n)
+                                    Num(n) => {
+                                        let n = if let Ok(n) = n.parse::<u32>() {
+                                            n.to_string()
+                                        } else {
+                                            base.to_owned() + "::" + &n
+                                        };
+                                        format!("std::array<{}, {}>", e.type_(), n)
+                                    }
                                 };
                                 "const ".to_owned() + &base + &t + &format!("& {}, ", e.name())
                             } else {
