@@ -12,7 +12,7 @@ struct Edge {
     is_defined: bool
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NodeType {
     TySeq,
     TyChoice,
@@ -82,7 +82,7 @@ impl Graph {
 
     fn add_node(&mut self, name: &str, type_: NodeType, type_name: &str, inline: bool) {
         let id = NodeId(self.nodes.len());
-        let node = Node {
+        let mut node = Node {
             id,
             name: name.to_owned(),
             type_,
@@ -97,6 +97,9 @@ impl Graph {
                 _ => false
             }
         };
+        if type_ == NodeType::TyEnum {
+            node.prune = false;
+        }
         self.nodes.push(node);
     }
 
