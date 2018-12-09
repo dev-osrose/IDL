@@ -230,6 +230,8 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
         }
     }
 
+    trace!("enum values: {:?}", enums);
+
     let mut vector = false;
     let mut array = false;
     for content in packet.contents() {
@@ -353,6 +355,17 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                     },
                     ComplexTypeContent::Seq(ref mut cc) => {
                         for elem in cc.elements_mut() {
+                            let is_defined = match elem.occurs() {
+                                Some(Occurs::Num(ref s)) => {
+                                    let tmp = s.split("::").collect::<Vec<_>>();
+                                    let s = tmp.last().unwrap();
+                                    enums.contains(*s)
+                                },
+                                _ => false
+                            };
+                            if is_defined {
+                                elem.set_occur_is_defined();
+                            }
                             let node = graph.get_node(elem.type_());
                             if let Ok(node) = node {
                                 if graph.nodes[node.0].is_defined {
@@ -368,7 +381,11 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             },
             PacketContent::Element(ref mut e) => {
                 let is_defined = match e.occurs() {
-                    Some(Occurs::Num(ref s)) => enums.contains(s),
+                    Some(Occurs::Num(ref s)) => {
+                        let tmp = s.split("::").collect::<Vec<_>>();
+                        let s = tmp.last().unwrap();
+                        enums.contains(*s)
+                    },
                     _ => false
                 };
                 if is_defined {
