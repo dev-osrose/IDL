@@ -65,7 +65,8 @@ pub struct Element {
     enum_type: Option<String>,
     is_defined: bool,
     special_read_write: Option<String>,
-    bits: Option<u32>
+    bits: Option<u32>,
+    occur_is_defined: bool
 }
 
 #[derive(Debug)]
@@ -324,7 +325,8 @@ impl Element {
                , bits: Option<u32>) -> Self {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
-                 is_defined: false, special_read_write, bits }
+                 is_defined: false, special_read_write, bits,
+                 occur_is_defined: false }
     }
     
     pub fn name(&self) -> &String {
@@ -395,6 +397,14 @@ impl Element {
     #[allow(dead_code)]
     pub fn set_bits(&mut self, bits: u32) {
         self.bits = Some(bits);
+    }
+
+    pub fn set_occur_is_defined(&mut self) {
+        self.occur_is_defined = true;
+    }
+
+    pub fn occur_is_defined(&self) -> bool {
+        self.occur_is_defined
     }
 }
 

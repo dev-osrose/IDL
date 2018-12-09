@@ -188,6 +188,8 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
 
     let mut graph = Graph::new();
 
+    let mut enums = ::std::collections::HashSet::<String>::new();
+
     for content in packet.contents() {
         use self::PacketContent::*;
         match content {
@@ -200,7 +202,10 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                             for content in r.contents() {
                                 use self::RestrictionContent::*;
                                 match content {
-                                    Enumeration(_) => enum_type = Some(r.base()),
+                                    Enumeration(ref e) => {
+                                        enums.insert(e.value().to_owned());
+                                        enum_type = Some(r.base());
+                                    },
                                     _ => {}
                                 }
                             }
@@ -362,6 +367,13 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             PacketContent::Simple(ref mut _s) => {
             },
             PacketContent::Element(ref mut e) => {
+                let is_defined = match e.occurs() {
+                    Some(Occurs::Num(ref s)) => enums.contains(s),
+                    _ => false
+                };
+                if is_defined {
+                    e.set_occur_is_defined();
+                }
                 let node = graph.get_node(e.type_());
                 if let Ok(node) = node {
                     if graph.nodes[node.0].type_ == TyEnum {

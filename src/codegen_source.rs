@@ -295,10 +295,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
                 Num(n) => {
-                    let n = if let Ok(n) = n.parse::<u32>() {
-                        n.to_string()
-                    } else {
+                    let n = if let Ok(_) = n.parse::<u32>() {
+                        n.to_owned()
+                    } else if elem.occur_is_defined() {
                         class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + &n
+                    } else {
+                        n.to_owned()
                     };
                     format!("std::array<{}, {}>", type_base, n)
                 }
@@ -347,10 +349,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             match o {
                 Unbounded => format!("std::vector<{}>", type_base),
                 Num(n) => {
-                    let n = if let Ok(n) = n.parse::<u32>() {
-                        n.to_string()
-                    } else {
+                    let n = if let Ok(_) = n.parse::<u32>() {
+                        n.to_owned()
+                    } else if elem.occur_is_defined() {
                         class_name.split("::").collect::<Vec<_>>()[0].to_owned() + "::" + &n
+                    } else {
+                        n.to_owned()
                     };
                     format!("std::array<{}, {}>", type_base, n)
                 }
@@ -393,10 +397,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 let t = match o {
                                     Unbounded => format!("std::vector<{}>", e.type_()),
                                     Num(n) => {
-                                        let n = if let Ok(n) = n.parse::<u32>() {
-                                            n.to_string()
-                                        } else {
+                                        let n = if let Ok(_) = n.parse::<u32>() {
+                                            n.to_owned()
+                                        } else if e.occur_is_defined() {
                                             base.to_owned() + "::" + &n
+                                        } else {
+                                            n.to_owned()
                                         };
                                         format!("std::array<{}, {}>", e.type_(), n)
                                     }
