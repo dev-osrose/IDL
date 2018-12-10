@@ -34,7 +34,32 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "using namespace RoseCommon::Packet;");
         cg!(self);
 
-        let iserialize = packet.contents().iter().filter_map(|elem| if PacketContent::is_type(elem) { PacketContent::type_from_name(elem) } else { None }).collect::<::std::collections::HashSet<String>>();
+        let iserialize = packet.contents().iter().filter_map(|elem| {
+            if PacketContent::is_type(elem) {
+                PacketContent::type_from_name(elem)
+            } else {
+                match elem {
+                    PacketContent::Element(ref e) => {
+                        match e.type_().as_ref() {
+                            "int8_t"
+                            | "uint8_t"
+                            | "int16_t"
+                            | "uint16_t"
+                            | "int32_t"
+                            | "uint32_t"
+                            | "int64_t"
+                            | "uint64_t"
+                            | "char"
+                            | "float"
+                            | "double"
+                            | "std::string" => None,
+                            _ => Some(e.type_().to_string())
+                        }
+                    },
+                    _ => None
+                }
+            }
+        }).collect::<::std::collections::HashSet<String>>();
 
         for content in packet.contents() {
             use self::PacketContent::*;
