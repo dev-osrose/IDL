@@ -233,20 +233,22 @@ namespace Packet {{
     fn element(&mut self, elem: &Element) -> Result<()> {
         self.doc(elem.doc())?;
 
-        if let Some(ref o) = elem.occurs() {
+        let (type_, bits) = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
-            match o {
-                Unbounded => { cg!(self, "std::vector<{}> {};", elem.type_(), elem.name()); },
-                Num(n) => { cg!(self, "std::array<{}, {}> {};", elem.type_(), n, elem.name()); }
-            }
+            let type_ = match o {
+                Unbounded => format!("std::vector<{}>", elem.type_()),
+                Num(n) => format!("std::array<{}, {}>", elem.type_(), n)
+            };
+            (type_, "".to_string())
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
-            let default = match elem.init() {
-                self::ElementInitValue::Default(d) => " = ".to_string() + d,
-                _ => "".to_string()
-            };
-            cg!(self, "{} {}{}{};", elem.type_(), elem.name(), bits, default);
-        }
+            (elem.type_().to_owned(), bits)
+        };
+        let default = match elem.init() {
+            self::ElementInitValue::Default(d) => " = ".to_string() + d,
+            _ => "".to_string()
+        };
+        cg!(self, "{} {}{}{};", type_, elem.name(), bits, default);
         Ok(())
     }
 
