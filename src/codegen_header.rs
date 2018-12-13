@@ -65,7 +65,7 @@ namespace Packet {{
         self.indent();
         cg!(self, "public:");
         self.indent();
-        cg!(self, "static constexpr uint16_t PACKET_ID = {};", packet.type_());
+        cg!(self, "static constexpr uint16_t PACKET_ID = ePacketType::{};", packet.type_());
         cg!(self, "{}();", packet.class_name());
         cg!(self, "{}(CRoseReader reader);", packet.class_name());
         cg!(self, "{0}({0}&&) = default;", packet.class_name());
