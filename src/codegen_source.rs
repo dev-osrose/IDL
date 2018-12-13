@@ -80,7 +80,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
 
         cg!(self);
-        cg!(self, "{0}::{0}() : CRosePacket(ePacketType::{1}) {{}}", packet.class_name(), packet.type_());
+        cg!(self, "{0}::{0}() : CRosePacket({0}::PACKET_ID) {{}}", packet.class_name());
         cg!(self);
         cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
         self.indent();
