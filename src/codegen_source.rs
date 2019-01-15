@@ -195,7 +195,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         continue;
                     }
                     if let Some(ref size) = elem.size_occurs() {
-                        cg!(self, "size += sizeof({});", size);
+                        cg!(self, "size += sizeof({}); // {}", size, elem.name());
                     }
                     let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
@@ -211,7 +211,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         rhs
                     };
-                    cg!(self, "size += {};", rhs);
+                    cg!(self, "size += {}; // {}", rhs, elem.name());
                 },
                 _ => {}
             }
@@ -258,7 +258,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         } else {
                             rhs
                         };
-                        cg!(self, "size += {};", rhs);
+                        cg!(self, "size += {}; // {}", rhs, elem.name());
                     }
                     cg!(self, "return size;");
                     self.dedent();
@@ -829,7 +829,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             let mut tmp = false;
             for content in restrict.contents() {
                 match content {
-                    Length(l) => { tmp = true; cg!(self, "size += {};", l); },
+                    Length(l) => { tmp = true; cg!(self, "size += {}; // {}", l, data); },
                     _ => {}
                 }
             }
