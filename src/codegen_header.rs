@@ -114,7 +114,7 @@ namespace Packet {{
         cg!(self);
         cg!(self, "protected:");
         self.indent();
-        cg!(self, "virtual void pack(CRoseBasePolicy&) const override;");
+        cg!(self, "virtual bool pack(CRoseBasePolicy&) const override;");
         self.dedent();
         cg!(self);
         cg!(self, "private:");
