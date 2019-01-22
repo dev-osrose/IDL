@@ -481,9 +481,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
     fn pack(&mut self, packet: &Packet, iserialize: &HashSet<String>) -> Result<()> {
         if packet.contents().len() == 0 {
-            cg!(self, "void {}::pack(CRoseBasePolicy&) const {{", packet.class_name());
+            cg!(self, "bool {}::pack(CRoseBasePolicy&) const {{", packet.class_name());
         } else {
-            cg!(self, "void {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
+            cg!(self, "bool {}::pack(CRoseBasePolicy& writer) const {{", packet.class_name());
         }
         self.indent();
         for content in packet.contents() {
@@ -505,13 +505,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             Unbounded | Num(_) => {
                                 if let Some(ref s) = elem.size_occurs() {
                                     self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
-                                        "return;"
+                                        "return false;"
                                     ], None)?;
                                 }
                                 cg!(self, "for (const auto& elem : {}) {{", elem.name());
                                 self.indent();
                                 self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
-                                        "return;"
+                                        "return false;"
                                     ], None)?;
                                 self.dedent();
                                 cg!(self, "}}");
@@ -519,13 +519,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         }
                     } else {
                         self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
-                            "return;"
+                            "return false;"
                         ], None)?;
                     }
                 },
                 _ => {}
             }
         }
+        cg!(self, "return true;");
         self.dedent();
         cg!(self, "}}");
         Ok(())
