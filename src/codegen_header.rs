@@ -13,13 +13,15 @@ pub mod macros {
 }
 
 pub (super) struct CodeHeaderGenerator<'a, W: Write + 'a> {
-    writer: &'a mut ::writer::Writer<W>
+    writer: &'a mut ::writer::Writer<W>,
+    version: String
 }
 
 impl<'a, W: Write> CodeHeaderGenerator<'a, W> {
-    pub fn new(writer: &'a mut ::writer::Writer<W>) -> Self {
+    pub fn new(writer: &'a mut ::writer::Writer<W>, version: String) -> Self {
         Self {
-            writer
+            writer,
+            version
         }
     }
 
@@ -38,6 +40,8 @@ impl<'a, W: Write> CodeHeaderGenerator<'a, W> {
 
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
         cg!(self, "#pragma once\n");
+        let version = self.version.clone();
+        cg!(self, "/* Generated with IDL v{} */\n", version);
         self.doc(packet.doc())?;
         cg!(self);
         cg!(self, r#"#include "packetfactory.h""#);
