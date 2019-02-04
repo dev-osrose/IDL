@@ -17,8 +17,9 @@ use clap::{App, Arg};
 use log::Level;
 
 fn main() -> Result<(), failure::Error> {
+    let version = "0.1.0";
     let matches = App::new("Packet generator")
-        .version("0.1")
+        .version(version)
         .author("L3nn0x <dragon83.super@gmail.com>")
         .about("Generates packets for osiROSE-new")
         .arg(Arg::with_name("INPUT")
@@ -71,7 +72,7 @@ fn main() -> Result<(), failure::Error> {
         let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;
         debug!("header {:?}", header_output);
         let mut writer = writer::Writer::new(header_output);
-        let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer);
+        let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer, version.to_string());
         codegen.generate(&packet)?;
         let source_output = File::create(outputc_dir.to_str().unwrap().to_owned() + &format!("/{}.cpp", packet.filename()))?;
         debug!("source {:?}", source_output);
