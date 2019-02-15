@@ -1,0 +1,5 @@
+language: rust
+rust:
+  - stable
+  
+##TODO: Add depolyment stuff here
