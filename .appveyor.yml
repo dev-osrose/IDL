@@ -71,13 +71,13 @@ artifacts:
 #- path: $(platform)-$(appveyor_build_version)-$(configuration).zip
 #  name: idl-package
 
-deploy:
-  release: idl-win64-v$(appveyor_build_version)
-  description: ''
-  provider: GitHub
-  auth_token:
-    secure: g7E2KwFd5bLd1ZiWSFGE9Ek13/uDOmmsOh080SXDBYcIpbL/rXHOU53F7t3ZxpmS
-  artifact: idl-package
-  force_update: false
-  on:
-    branch: master
+#deploy:
+#  release: idl-win64-v$(appveyor_build_version)
+#  description: ''
+#  provider: GitHub
+#  auth_token:
+#    secure: g7E2KwFd5bLd1ZiWSFGE9Ek13/uDOmmsOh080SXDBYcIpbL/rXHOU53F7t3ZxpmS
+#  artifact: idl-package
+#  force_update: false
+#  on:
+#    branch: master
