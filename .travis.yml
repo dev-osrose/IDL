@@ -1,20 +1,18 @@
 language: rust
 rust:
 - stable
-
 cache: cargo
-
 before_deploy:
-  - mkdir ${TRAVIS_BUILD_DIR}/public
-  - tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz target/*/packet_generator
-  - export TRAVIS_TAG=idl-latest
+- mkdir ${TRAVIS_BUILD_DIR}/public
+- tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz target/*/packet_generator
+- export TRAVIS_TAG=idl-latest
 deploy:
   provider: releases
   name: idl-latest
   overwrite: true
   skip_cleanup: true
   api_key:
-    secure: u0DKBv0ZaE8+J/WxJTyEyY+PVgtk8ymuOfRN3IxglSEG+JFgGhiUQLD9lZ0S5n3lQZ5b8MPmtbnwuX1XY2PtnWKrb+5OVRR5yvAcR9P0pY1SxtMR4uATVxdFCXim347xn98trRuIomACrLHD/D75HN46hAfPc/gGektguuMr6b2hph2bgGZ2Hd3EPSZq4Q2gAVwHislJLyLf8tX6lvwlIqb3mpaZPRQNBma2AhTTRQOq8u1Fkz9sLV5VDI3AdhfE//+cVCzPX1I2piLKDqZ2MNQNwlWwLaKUy33SDFIUndu6QQhFsL1XDUIXsxhTqu8Y4Qbs1Ksx7iCh1oAPIot7wdI1hJna51vKtMh9tK6r64QNc8GkbEuH7aWbSS0o0w3vx8hzvuDRzj0+gNTDCkEadvPSLExpRGgg8jZSz0C70VQzi+obG6cR9CGkUETlvUmLMaqd6H+WAQwRPUof/cnZUZNW/NAYTR6GSvcTgJOyZy/P0Q5vzsat3LhvpshC9IUzOM3v3GDcQ1s6JL3PRz8dKTzz4et9FpVkn77YW8h7Dgv3Ygag/cAN0dsV4Ds77HImacDSE6BiNm5uenE4CEQeUbWq4PLJl/PDu5V9z9QbCTHKP2STNMg3vCPjg0Sl6RGG+8s5u2LfuZeRQue19UDjnYMsifkxRy+zKr+FYW29c10=
-  file: ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz
+    secure: qJeXExz0tx4bV/lXiE975Ec8akv1dBtTc99Oeta0YBTwz6C5MWNlwKh6+/CUnoJwhY14y17mLAMZj/DsdW8tKAHG0FOKKGN3HVb/5KxG2kBdhpsb5nqWI2HNiR5Z5dTYae5Kj4v5iIfa7VJvjiuJwYoV6IJ3rWorc9RBbnrSeGiTMhzIy/+5rvDiA8vDWIJSuvTgMC6YGhkZjQsVEVnnuOstTDqDskKyKVM09LA+sUEKyMuQwFb19D9KnVpwNv+yfrMLFCLVOj/63YcCF60b83SkBHDuMnArwcHcmfZckTqMWTJveXcI3LVeWnqNtiqs1NxWn7W83BR47Y1/cVVa1eZzZhevy7jTRRNPJQtY5rZ2vsWl/t211ABAyUkQBaVuaDB2tSojd5eOphPuoTEU3ZUPpJfJG/dv5VkxE8Whv4Fa3PUg5eo6ncEmJO9RueEo74F3xDWgXTxd8GWIfgiuL674q1+c15ytoM/SqnRkSnXzO5bEB+zDW2rJOy+MzBOdczfKeqUKYqTa2wf8iP/SV2nfdnN2KUgo55DWfcwO8KbxdZBWosDJAa1zylU6SC8znrnAblQ0xDpBx9ft+Yson1V/PQ9ErbLoulJVAcNmBX25cWPzhjx6rOnObwCBgr6dBIIy0wBDlscdo6AZnY4zirg0JY6kkskp+6kuWFNpD6o=
+  file: "${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz"
   on:
     repo: dev-osrose/IDL
