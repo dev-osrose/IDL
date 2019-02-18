@@ -64,9 +64,10 @@ build: false
 # environment variable.
 test_script:
   - cargo test --verbose %cargoflags%
+  - 7z a %APPVEYOR_BUILD_FOLDER%/$PLATFORM-%APPVEYOR_BUILD_VERSION%.zip %APPVEYOR_BUILD_FOLDER%/target/*/packet_generator*.exe
 
 artifacts:
-- path: target/*/packet_generator*
+- path: $(platform)-$(appveyor_build_version).zip
   name: win64-packet-generator
 #- path: $(platform)-$(appveyor_build_version)-$(configuration).zip
 #  name: idl-package

@@ -2,7 +2,9 @@ language: rust
 rust:
 - stable
 
-#before_deploy:
+before_deploy:
+  - mkdir ${TRAVIS_BUILD_DIR}/public
+  - tar -zcvf ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${TRAVIS_JOB_NUMBER}-${BUILD_TYPE}.tar.gz target/*/packet_generator
 #  # Set up git user name and tag this commit
 #  - git config --local user.name "YOUR GIT USER NAME"
 #  - git config --local user.email "YOUR GIT USER EMAIL"
@@ -12,6 +14,6 @@ rust:
 #  provider: releases
 #  api_key:
 #    secure: qEgKl1DEAfdsBe+wgVXGypjfvO7RCIbj++QHcmZnMSmO9PJMSgpfGFaNK6bii5lTs7A7chijPGbKGdNWc4AU/tlRAD04lu1F0k7KapM8aNLq5qQ7QHIZwK6L1Q/+HwBS7aj9qRxjcA2Y5mSSXCvN28toB/R7csb7bDjmQpHxdDAny92nLzt6fvRiNyuDGmCJArXMhghy7t7z5yYrI2Lg3X3TAmhA+t3d58DaU7NZ2+tvonRYd+A+O6hxnFzMfYgfBLiKejQ13IlBMOtHyYyUL3SXbs338ztHKH5kiCXFkWYoUhBDsP9+fQSKp0E/3g6t6DVokmkPBpjdZoNoZ+c0vq05fktHOKagKPnt3C2t8aLll2uDumvxnWCgDIzsnA6rMT7QjgYt2S7uilpWaYKDsysK82gtEhtksX2H7tWKH99n6aavxYqqEcYwdkyEcQ769UTZc0+LQjO45jCNS0h+kXuwSYTVWj2bUsNGuT2loigJA+oNEuHcipqaexjXnsQIucZCLiqdnZuXGGiqvdy5cnllnDKmVV79ZdSPoCugRd3KW4vZp5syOXx6/Lqx/axfPUYPzeJxQf/UBt6d7iC81q5Zsil6REAWbJRr0n+8I2f5urkR1PutnExX7jD4gLbPuaPFgwBM3QAMkrqiqfK6QRj6Dkid3+d3sYgC+se3jxU=
-#  file: target/*/packet_generator
+#  file: ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${TRAVIS_JOB_NUMBER}-${BUILD_TYPE}.tar.gz
 #  on:
 #    repo: dev-osrose/IDL
