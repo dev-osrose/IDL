@@ -7,6 +7,7 @@ before_deploy:
   - tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-${TRAVIS_JOB_NUMBER}.tar.gz target/*/packet_generator
 deploy:
   provider: releases
+  skip_cleanup: true
   api_key:
     secure: qEgKl1DEAfdsBe+wgVXGypjfvO7RCIbj++QHcmZnMSmO9PJMSgpfGFaNK6bii5lTs7A7chijPGbKGdNWc4AU/tlRAD04lu1F0k7KapM8aNLq5qQ7QHIZwK6L1Q/+HwBS7aj9qRxjcA2Y5mSSXCvN28toB/R7csb7bDjmQpHxdDAny92nLzt6fvRiNyuDGmCJArXMhghy7t7z5yYrI2Lg3X3TAmhA+t3d58DaU7NZ2+tvonRYd+A+O6hxnFzMfYgfBLiKejQ13IlBMOtHyYyUL3SXbs338ztHKH5kiCXFkWYoUhBDsP9+fQSKp0E/3g6t6DVokmkPBpjdZoNoZ+c0vq05fktHOKagKPnt3C2t8aLll2uDumvxnWCgDIzsnA6rMT7QjgYt2S7uilpWaYKDsysK82gtEhtksX2H7tWKH99n6aavxYqqEcYwdkyEcQ769UTZc0+LQjO45jCNS0h+kXuwSYTVWj2bUsNGuT2loigJA+oNEuHcipqaexjXnsQIucZCLiqdnZuXGGiqvdy5cnllnDKmVV79ZdSPoCugRd3KW4vZp5syOXx6/Lqx/axfPUYPzeJxQf/UBt6d7iC81q5Zsil6REAWbJRr0n+8I2f5urkR1PutnExX7jD4gLbPuaPFgwBM3QAMkrqiqfK6QRj6Dkid3+d3sYgC+se3jxU=
   file: ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz
