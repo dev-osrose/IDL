@@ -64,10 +64,16 @@ build: false
 # environment variable.
 test_script:
   - cargo test --verbose %cargoflags%
-  - 7z a %APPVEYOR_BUILD_FOLDER%/win64-%APPVEYOR_BUILD_VERSION%.zip %APPVEYOR_BUILD_FOLDER%/target/*/packet_generator*.exe
+  - ps: |
+        $files = gci -Recurse $(appveyor_build_folder)\target\*\packet_generator-*.exe -file
+        foreach($file in $files){
+            $Newpath = "{0}\packet_generator.exe" -f $(appveyor_build_folder)
+            copy-item -literalpath $file.fullname -destination $Newpath
+        }
+  - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
 
 artifacts:
-- path: win64-$(appveyor_build_version).zip
+- path: win64-packet_generator.zip
   name: win64-packet-generator
 
 #deploy:
