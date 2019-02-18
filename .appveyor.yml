@@ -79,5 +79,3 @@ deploy:
     secure: QnydmfpGO9fJ/UbcplEErrEcZRXsqZjTlwUU+tIncUtnEulSLPCGYsWhZvTrQ937
   artifact: win64-packet-generator
   force_update: true
-  on:
-    branch: master

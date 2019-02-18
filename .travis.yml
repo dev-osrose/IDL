@@ -6,7 +6,8 @@ cache: cargo
 
 before_deploy:
   - mkdir ${TRAVIS_BUILD_DIR}/public
-  - tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-${TRAVIS_JOB_NUMBER}.tar.gz target/*/packet_generator
+  - tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz target/*/packet_generator
+  - export TRAVIS_TAG=idl-latest
 deploy:
   provider: releases
   name: idl-latest
