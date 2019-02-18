@@ -64,11 +64,7 @@ build: false
 # environment variable.
 test_script:
   - cargo test --verbose %cargoflags%
-  - ps: |
-        $files = gci -Recurse C:\projects\IDL\target\*\packet_generator-*.exe -file
-        foreach($file in $files){
-            copy-item -literalpath $file.fullname -destination C:\projects\IDL\packet_generator.exe
-        }
+  - ps: copy-item C:\projects\IDL\target\debug\deps\packet_generator-*.exe -destination C:\projects\IDL\packet_generator.exe
   - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
 
 artifacts:
