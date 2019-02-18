@@ -2,9 +2,12 @@ language: rust
 rust:
 - stable
 
+cache: cargo
+
 before_deploy:
   - mkdir ${TRAVIS_BUILD_DIR}/public
   - tar -zcvf ${TRAVIS_BUILD_DIR}/public/linux-${TRAVIS_JOB_NUMBER}.tar.gz target/*/packet_generator
+  - git tag idl-latest
 deploy:
   provider: releases
   skip_cleanup: true
@@ -13,4 +16,3 @@ deploy:
   file: ${TRAVIS_BUILD_DIR}/public/linux-packet_generator.tar.gz
   on:
     repo: dev-osrose/IDL
-    tags: true
