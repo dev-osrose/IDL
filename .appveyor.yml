@@ -71,13 +71,13 @@ artifacts:
 - path: win64-packet_generator.zip
   name: win64-packet-generator
 
-#deploy:
-#  release: idl-win64-latest
-#  description: ''
-#  provider: GitHub
-#  auth_token:
-#    secure: g7E2KwFd5bLd1ZiWSFGE9Ek13/uDOmmsOh080SXDBYcIpbL/rXHOU53F7t3ZxpmS
-#  artifact: win64-packet-generator
-#  force_update: true
-#  on:
-#    branch: master
+deploy:
+  release: idl-win64-latest
+  description: 'latest win64 packet_generator build'
+  provider: GitHub
+  auth_token:
+    secure: QnydmfpGO9fJ/UbcplEErrEcZRXsqZjTlwUU+tIncUtnEulSLPCGYsWhZvTrQ937
+  artifact: win64-packet-generator
+  force_update: true
+  on:
+    branch: master
