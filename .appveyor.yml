@@ -65,10 +65,9 @@ build: false
 test_script:
   - cargo test --verbose %cargoflags%
   - ps: |
-        $files = gci -Recurse $(appveyor_build_folder)\target\*\packet_generator-*.exe -file
+        $files = gci -Recurse C:\projects\IDL\target\*\packet_generator-*.exe -file
         foreach($file in $files){
-            $Newpath = "{0}\packet_generator.exe" -f $(appveyor_build_folder)
-            copy-item -literalpath $file.fullname -destination $Newpath
+            copy-item -literalpath $file.fullname -destination C:\projects\IDL\packet_generator.exe
         }
   - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
 
@@ -77,12 +76,12 @@ artifacts:
   name: win64-packet-generator
 
 #deploy:
-#  release: idl-win64-v$(appveyor_build_version)
+#  release: idl-win64-latest
 #  description: ''
 #  provider: GitHub
 #  auth_token:
 #    secure: g7E2KwFd5bLd1ZiWSFGE9Ek13/uDOmmsOh080SXDBYcIpbL/rXHOU53F7t3ZxpmS
 #  artifact: win64-packet-generator
-#  force_update: false
+#  force_update: true
 #  on:
 #    branch: master
