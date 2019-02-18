@@ -64,13 +64,11 @@ build: false
 # environment variable.
 test_script:
   - cargo test --verbose %cargoflags%
-  - 7z a %APPVEYOR_BUILD_FOLDER%/$PLATFORM-%APPVEYOR_BUILD_VERSION%.zip %APPVEYOR_BUILD_FOLDER%/target/*/packet_generator*.exe
+  - 7z a %APPVEYOR_BUILD_FOLDER%/win64-%APPVEYOR_BUILD_VERSION%.zip %APPVEYOR_BUILD_FOLDER%/target/*/packet_generator*.exe
 
 artifacts:
-- path: $(platform)-$(appveyor_build_version).zip
+- path: win64-$(appveyor_build_version).zip
   name: win64-packet-generator
-#- path: $(platform)-$(appveyor_build_version)-$(configuration).zip
-#  name: idl-package
 
 #deploy:
 #  release: idl-win64-v$(appveyor_build_version)
@@ -78,7 +76,7 @@ artifacts:
 #  provider: GitHub
 #  auth_token:
 #    secure: g7E2KwFd5bLd1ZiWSFGE9Ek13/uDOmmsOh080SXDBYcIpbL/rXHOU53F7t3ZxpmS
-#  artifact: idl-package
+#  artifact: win64-packet-generator
 #  force_update: false
 #  on:
 #    branch: master
