@@ -72,8 +72,8 @@ artifacts:
   name: win64-packet-generator
 
 deploy:
-  release: idl-win64-latest
-  description: 'latest win64 packet_generator build'
+  release: idl-latest
+  description: 'latest packet_generator build'
   provider: GitHub
   auth_token:
     secure: QnydmfpGO9fJ/UbcplEErrEcZRXsqZjTlwUU+tIncUtnEulSLPCGYsWhZvTrQ937
