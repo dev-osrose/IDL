@@ -68,6 +68,9 @@ test_script:
   - ps: copy-item C:\projects\IDL\target\debug\deps\packet_generator.exe -destination C:\projects\IDL\packet_generator.exe
   - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
 
+on_finish:
+- ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
 artifacts:
 - path: win64-packet_generator.zip
   name: win64-packet-generator
