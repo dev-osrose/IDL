@@ -63,13 +63,10 @@ build: false
 #directly or perform other testing commands. Rust will automatically be placed in the PATH
 # environment variable.
 test_script:
+  - cargo build
   - cargo test --verbose %cargoflags%
   - ps: copy-item C:\projects\IDL\target\debug\deps\packet_generator.exe -destination C:\projects\IDL\packet_generator.exe
   - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
-
-on_finish:
-- ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-
 
 artifacts:
 - path: win64-packet_generator.zip
