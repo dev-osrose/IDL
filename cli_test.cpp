@@ -49,7 +49,7 @@ constexpr size_t CliTest::A::size() {
 
 
 
-CliTest::CliTest() : CRosePacket(ePacketType::PAKCS_TEST) {}
+CliTest::CliTest() : CRosePacket(CliTest::PACKET_ID) {}
 
 CliTest::CliTest(CRoseReader reader) : CRosePacket(reader) {
     for (size_t index = 0; index < 42; ++index) {
@@ -63,10 +63,12 @@ CliTest::CliTest(CRoseReader reader) : CRosePacket(reader) {
 }
 
 void CliTest::set_test(const std::array<int, 42>& test) {
+    this->size_ = 0;
     this->test = test;
 }
 
 void CliTest::set_test(const int& test, size_t index) {
+    this->size_ = 0;
     this->test[index] = test;
 }
 
@@ -79,6 +81,7 @@ const int& CliTest::get_test(size_t index) const {
 }
 
 void CliTest::set_test2(const CliTest::A test2) {
+    this->size_ = 0;
     this->test2 = test2;
 }
 
@@ -103,21 +106,22 @@ std::unique_ptr<CliTest> CliTest::allocate(const uint8_t* buffer) {
     return std::make_unique<CliTest>(reader);
 }
 
-void CliTest::pack(CRoseBasePolicy& writer) const {
+bool CliTest::pack(CRoseBasePolicy& writer) const {
     for (const auto& elem : test) {
         if (!writer.set_int(elem)) {
-            return;
+            return false;
         }
     }
     if (!writer.set_iserialize(test2)) {
-        return;
+        return false;
     }
+    return true;
 }
 
 constexpr size_t CliTest::size() {
     size_t size = 0;
-    size += sizeof(int) * 42;
-    size += A::size();
+    size += sizeof(int) * 42; // test
+    size += A::size(); // test2
     return size;
 }
 

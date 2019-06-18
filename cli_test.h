@@ -1,5 +1,7 @@
 #pragma once
 
+/* Generated with IDL v0.1.1 */
+
 
 #include "packetfactory.h"
 #include <array>
@@ -9,6 +11,7 @@ namespace Packet {
 
 class CliTest : public CRosePacket {
     public:
+        static constexpr ePacketType PACKET_ID = ePacketType::PAKCS_TEST;
         CliTest();
         CliTest(CRoseReader reader);
         CliTest(CliTest&&) = default;
@@ -76,7 +79,7 @@ class CliTest : public CRosePacket {
         static std::unique_ptr<CliTest> allocate(const uint8_t*);
     
     protected:
-        virtual void pack(CRoseBasePolicy&) const override;
+        virtual bool pack(CRoseBasePolicy&) const override;
     
     private:
         std::array<int, 42> test;
