@@ -63,12 +63,12 @@ CliTest::CliTest(CRoseReader reader) : CRosePacket(reader) {
 }
 
 void CliTest::set_test(const std::array<int, 42>& test) {
-    this->size_ = 0;
+    reset_size();
     this->test = test;
 }
 
 void CliTest::set_test(const int& test, size_t index) {
-    this->size_ = 0;
+    reset_size();
     this->test[index] = test;
 }
 
@@ -81,7 +81,7 @@ const int& CliTest::get_test(size_t index) const {
 }
 
 void CliTest::set_test2(const CliTest::A test2) {
-    this->size_ = 0;
+    reset_size();
     this->test2 = test2;
 }
 
