@@ -103,7 +103,7 @@ namespace Packet {{
             use self::PacketContent::*;
             match content {
                 Element(ref elem) => {
-                    self.elem_setter(elem)?;
+                    self.elem_setter(elem, packet.class_name())?;
                     self.elem_getter(elem)?;
                 },
                 _ => {}
@@ -170,7 +170,7 @@ namespace Packet {{
             match complex.content() {
                 Seq(ref s) => {
                     for elem in s.elements() {
-                        self.elem_setter(elem)?;
+                        self.elem_setter(elem, complex.name())?;
                         self.elem_getter(elem)?;
                     }
                     cg!(self);
@@ -185,11 +185,11 @@ namespace Packet {{
                     for elem in c.elements() {
                         if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
                             for e in seq.elements() {
-                                self.elem_setter(e)?;
+                                self.elem_setter(e, complex.name())?;
                                 self.elem_getter(e)?;
                             }
                         } else {
-                            self.elem_setter(elem)?;
+                            self.elem_setter(elem, complex.name())?;
                             self.elem_getter(elem)?;
                         }
                     }
@@ -257,7 +257,7 @@ namespace Packet {{
         Ok(())
     }
 
-    fn elem_setter(&mut self, elem: &Element) -> Result<()> {
+    fn elem_setter(&mut self, elem: &Element, class: &str) -> Result<()> {
         let reference = if elem.reference() { "&" } else { "" };
         use ::flat_ast::Occurs::*;
         let type_ = if let Some(ref o) = elem.occurs() {
@@ -270,11 +270,11 @@ namespace Packet {{
         } else {
             elem.type_().to_owned()
         };
-        cg!(self, "void set_{}(const {}{});", elem.name(), type_, reference);
+        cg!(self, "{}& set_{}(const {}{});", class, elem.name(), type_, reference);
         if let Some(ref o) = elem.occurs() {
             match o {
-                Unbounded => { cg!(self, "void add_{}(const {}{});", elem.name(), elem.type_(), reference); },
-                Num(_) => { cg!(self, "void set_{}(const {}{}, size_t index);", elem.name(), elem.type_(), reference); }
+                Unbounded => { cg!(self, "{}& add_{}(const {}{});", class, elem.name(), elem.type_(), reference); },
+                Num(_) => { cg!(self, "{}& set_{}(const {}{}, size_t index);", class, elem.name(), elem.type_(), reference); }
             }
         }
         Ok(())
@@ -314,9 +314,9 @@ namespace Packet {{
                                     Unbounded => format!("std::vector<{}>", e.type_()),
                                     Num(n) => format!("std::array<{}, {}>", e.type_(), n)
                                 };
-                                "const ".to_owned() + &t + "&, "
+                                "const ".to_owned() + &t + &format!("& {}, ", e.name())
                             } else {
-                                "const ".to_owned() + e.type_() + "&, "
+                                "const ".to_owned() + e.type_() + &format!("& {}, ", e.name())
                             }
                         },
                         _ => "".to_owned()
@@ -330,8 +330,8 @@ namespace Packet {{
             &args
         };
         cg!(self, "static {} create({});", packet.class_name(), args);
-        cg!(self, "static {} create(const uint8_t*);", packet.class_name());
-        cg!(self, "static std::unique_ptr<{}> allocate(const uint8_t*);", packet.class_name());
+        cg!(self, "static {} create(const uint8_t* buffer);", packet.class_name());
+        cg!(self, "static std::unique_ptr<{}> allocate(const uint8_t* buffer);", packet.class_name());
         Ok(())
     }
 

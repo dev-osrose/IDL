@@ -1,5 +1,19 @@
 <packet ePacketType = "PAKCS_TEST">
-    <includeXml path = "inc.xml"/>
-    <element name = "test" type = "int" occurs = "42" ref = "true" />
-    <element name = "test2" type = "A"/>
+    <element name = "test" type = "Test"/>
+    <complexType name = "Test">
+        <choice>
+            <element name = "a" type = "A"/>
+            <element name = "b" type = "B"/>
+        </choice>
+    </complexType>
+    <complexType name = "A">
+        <sequence>
+            <element name = "a" type = "uint8_t"/>
+        </sequence>
+    </complexType>
+    <complexType name = "B">
+        <sequence>
+            <element name = "b" type = "uint8_t"/>
+        </sequence>
+    </complexType>
 </packet>

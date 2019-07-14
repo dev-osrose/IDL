@@ -4,7 +4,6 @@
 
 
 #include "packetfactory.h"
-#include <array>
 
 namespace RoseCommon {
 namespace Packet {
@@ -21,60 +20,12 @@ class CliTest : public CRosePacket {
         static constexpr size_t size();
         
         
-        struct B : public ISerialize {
-            B();
-            B(int);
-            B(const B&) = default;
-            B(B&&) = default;
-            B& operator=(const B&) = default;
-            B& operator=(B&&) = default;
-            virtual ~B() = default;
-            
-            static constexpr size_t size();
-            
-            operator int() const { return b; }
-            bool isValid() const { return is_valid; }
-            
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            private:
-                int b;
-                bool is_valid;
-        };
         
-        struct A : public ISerialize {
-            A();
-            A(B);
-            A(const A&) = default;
-            A(A&&) = default;
-            A& operator=(const A&) = default;
-            A& operator=(A&&) = default;
-            virtual ~A() = default;
-            
-            static constexpr size_t size();
-            
-            operator B() const { return a; }
-            bool isValid() const { return is_valid; }
-            
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            private:
-                B a;
-                bool is_valid;
-        };
+        CliTest& set_test(const uint8_t);
+        uint8_t get_test() const;
         
         
-        void set_test(const std::array<int, 42>&);
-        void set_test(const int&, size_t index);
-        const std::array<int, 42>& get_test() const;
-        const int& get_test(size_t index) const;
-        void set_test2(const A);
-        A get_test2() const;
-        
-        
-        static CliTest create(const std::array<int, 42>&, const A&);
+        static CliTest create(const uint8_t& test);
         static CliTest create(const uint8_t*);
         static std::unique_ptr<CliTest> allocate(const uint8_t*);
     
@@ -82,8 +33,7 @@ class CliTest : public CRosePacket {
         virtual bool pack(CRoseBasePolicy&) const override;
     
     private:
-        std::array<int, 42> test;
-        A test2;
+        uint8_t test;
 };
 
 }

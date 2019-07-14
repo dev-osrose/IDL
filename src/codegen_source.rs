@@ -333,26 +333,29 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         } else {
             type_base
         };
-        cg!(self, "void {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), type_, reference);
+        cg!(self, "{0}& {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), type_, reference);
         self.indent();
         cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
+        cg!(self, "return *this;");
         self.dedent();
         cg!(self, "}}");
         cg!(self);
         if let Some(ref o) = elem.occurs() {
             match o {
                 Unbounded => {
-                    cg!(self, "void {0}::add_{1}(const {2}{3} {1}) {{", class_name, elem.name(), elem.type_(), reference);
+                    cg!(self, "{0}& {0}::add_{1}(const {2}{3} {1}) {{", class_name, elem.name(), elem.type_(), reference);
                     self.indent();
                     cg!(self, "this->{0}.emplace_back({0});", elem.name());
+                    cg!(self, "return *this");
                     self.dedent();
                     cg!(self, "}}");
                     cg!(self);
                 },
                 Num(_) => {
-                    cg!(self, "void {0}::set_{1}(const {2}{3} {1}, size_t index) {{", class_name, elem.name(), elem.type_(), reference);
+                    cg!(self, "{0}& {0}::set_{1}(const {2}{3} {1}, size_t index) {{", class_name, elem.name(), elem.type_(), reference);
                     self.indent();
                     cg!(self, "this->{0}[index] = {0};", elem.name());
+                    cg!(self, "return *this");
                     self.dedent();
                     cg!(self, "}}");
                     cg!(self);
