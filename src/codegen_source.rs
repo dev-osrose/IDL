@@ -346,7 +346,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "{0}& {0}::add_{1}(const {2}{3} {1}) {{", class_name, elem.name(), elem.type_(), reference);
                     self.indent();
                     cg!(self, "this->{0}.emplace_back({0});", elem.name());
-                    cg!(self, "return *this");
+                    cg!(self, "return *this;");
                     self.dedent();
                     cg!(self, "}}");
                     cg!(self);
@@ -355,7 +355,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "{0}& {0}::set_{1}(const {2}{3} {1}, size_t index) {{", class_name, elem.name(), elem.type_(), reference);
                     self.indent();
                     cg!(self, "this->{0}[index] = {0};", elem.name());
-                    cg!(self, "return *this");
+                    cg!(self, "return *this;");
                     self.dedent();
                     cg!(self, "}}");
                     cg!(self);
