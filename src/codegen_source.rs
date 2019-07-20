@@ -97,11 +97,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         clean_base(elem.type_())
                     };
-                    let name = if let Some(ref enum_type) = elem.enum_type() {
-                        format!("({}&){}", enum_type, elem.name())
-                    } else {
-                        elem.name().to_owned()
-                    };
+
+                    let name = elem.name().to_owned();
+
                     if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
                         match o {
@@ -153,6 +151,15 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 cg!(self, "}}");
                             }
                         }
+                    } else if let Some(ref enum_type) = elem.enum_type() {
+                        // Introduce a temprorary variable to avoid reference aliasing issues
+                        let temp_name = format!("{}_temp", elem.name());
+                        cg!(self, "{} {};", enum_type, temp_name);
+                        self.write_if_else(&format!("!reader.get_{}({})", enum_type, temp_name), &[
+                            "return;"
+                        ], None)?;
+                        cg!(self, "{} = static_cast<{}>({});", elem.name(), elem.type_(), temp_name);
+                        cg!(self);
                     } else {
                         self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
                             "return;"
