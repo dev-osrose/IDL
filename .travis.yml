@@ -7,8 +7,9 @@ os:
 rust:
 - stable
 cache: cargo
-before_deploy:
+before_script:
 - export PROCESSOR_ARCH=`uname -p`
+before_deploy:
 - mkdir ${TRAVIS_BUILD_DIR}/public
 - tar --transform 's/.*\///g' -zcvf ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${PROCESSOR_ARCH}-packet_generator.tar.gz target/*/packet_generator
 - export TRAVIS_TAG=idl-latest
