@@ -9,6 +9,7 @@ rust:
 cache: cargo
 before_script:
 - export PROCESSOR_ARCH=`uname -p`
+- echo $PROCESSOR_ARCH
 before_deploy:
 - mkdir ${TRAVIS_BUILD_DIR}/public
 - tar --transform 's/.*\///g' -zcvf ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${PROCESSOR_ARCH}-packet_generator.tar.gz target/*/packet_generator
