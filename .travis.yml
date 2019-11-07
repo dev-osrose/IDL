@@ -4,12 +4,14 @@ arch:
 - arm64
 os:
 - linux
+env:
+- PROCESSOR_ARCH=`uname -p`
 rust:
 - stable
 cache: cargo
 before_deploy:
 - mkdir ${TRAVIS_BUILD_DIR}/public
-- tar --transform 's/.*\///g' -zcvf ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${TRAVIS_CPU_ARCH}-packet_generator.tar.gz target/*/packet_generator
+- tar --transform 's/.*\///g' -zcvf ${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${PROCESSOR_ARCH}-packet_generator.tar.gz target/*/packet_generator
 - export TRAVIS_TAG=idl-latest
 deploy:
   provider: releases
@@ -18,6 +20,6 @@ deploy:
   skip_cleanup: true
   api_key:
     secure: brj1bUDWik7fABbb6G/Q7GtWUfp9QV6r0Una/B1/ffWPAgb6H1AwSlFJKBWSDI/RPd9K7sAN3rAuYvFaJzDz2jON3mvG2zmucbouyftRAKnt30MTitHENeHBKbyLUtDk9z5t/RVxYqHxVvw2Pahk+UdkCK4XUK3PcmML9o74STzVUghA6zd57WO3b+CH+181NaaHp2bgb3Ps54QPfjPg2+TSonM3eYHmKTCTuBKprUF+DNIHgT6R3C3GQDR6ByF6wYhQfhBe1vxRNZiYB1BjalqQjOkCpxsneckU3Al/pVeePQ2DIMT5urLELpWC4FHVQT368BbvYQaMpi8hr8EgizVGZQRAqQ1FCULQVUo/dMThzKUQvoYBjCeVadlP+ToKsFE2Fug99A7D8TeJBfFc8Sbu6z9rFqp0jJi3zy0Eyeq9p2jY2T9c9P5Lundqh8Y/R8srV65lF9JDsnaAHPIRgYIf+44he1XW/4HHcjXzH2R53AnZqSGjFEizm+efs8APgq4uG7jb7MQPFdMfdiV79NHr8BgOyrzde4ZtU3FMCBftetf4NqBP7xqvNRbWFCZSOXZKv7J55ppyJc/H+mDvDaSUhl+JgshdEBcbyVEAZDmP7JqNtijagIr9SneGJbV3HD+vqiYazU9BbIlFPhS+WlGzAYnj6I4iMKc5ojIu6VU=
-  file: "${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${TRAVIS_CPU_ARCH}-packet_generator.tar.gz"
+  file: "${TRAVIS_BUILD_DIR}/public/${TRAVIS_OS_NAME}-${PROCESSOR_ARCH}-packet_generator.tar.gz"
   on:
     repo: dev-osrose/IDL

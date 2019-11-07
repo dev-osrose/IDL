@@ -66,11 +66,11 @@ test_script:
   - cargo build
   - cargo test --verbose %cargoflags%
   - ps: copy-item C:\projects\IDL\target\debug\packet_generator.exe -destination C:\projects\IDL\packet_generator.exe
-  - 7z a %APPVEYOR_BUILD_FOLDER%/win64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
+  - 7z a %APPVEYOR_BUILD_FOLDER%/windows-amd64-packet_generator.zip %APPVEYOR_BUILD_FOLDER%\packet_generator.exe
 
 artifacts:
-- path: win64-packet_generator.zip
-  name: win64-packet-generator
+- path: windows-amd64-packet_generator.zip
+  name: windows-amd64-packet-generator
 
 deploy:
   release: idl-latest
@@ -78,5 +78,5 @@ deploy:
   provider: GitHub
   auth_token:
     secure: QnydmfpGO9fJ/UbcplEErrEcZRXsqZjTlwUU+tIncUtnEulSLPCGYsWhZvTrQ937
-  artifact: win64-packet-generator
+  artifact: windows-amd64-packet-generator
   force_update: true
