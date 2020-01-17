@@ -161,9 +161,20 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         cg!(self, "{} = static_cast<{}>({});", elem.name(), elem.type_(), temp_name);
                         cg!(self);
                     } else {
-                        self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
+                        // if we have a bitfield, we need to introduce a temporary variable
+                        let (name, bits) = if let Some(bits) = elem.bits() {
+                            let temp_name = format!("{}_temp", elem.name());
+                            cg!(self, "{} {};", base, temp_name);
+                            (temp_name, format!(", {}", bits))
+                        } else {
+                            (name, "".to_string())
+                        };
+                        self.write_if_else(&format!("!reader.get_{}({}{})", base, name, bits), &[
                             "return;"
                         ], None)?;
+                        if elem.bits().is_some() {
+                            cg!(self, "{} = {};", elem.name(), name);
+                        }
                     }
                 },
                 _ => {}
@@ -207,7 +218,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
                     } else {
-                        format!("sizeof({})", elem.type_())
+                        let size = elem.bits().map_or(elem.type_().clone(), |n| n.to_string());
+                        format!("sizeof({})", size)
                     };
                     let rhs = if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
@@ -254,7 +266,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                             format!("{}::size()", elem.type_())
                         } else {
-                            format!("sizeof({})", elem.type_())
+                            let size = elem.bits().map_or(elem.type_().clone(), |n| n.to_string());
+                            format!("sizeof({})", size)
                         };
                         let rhs = if let Some(ref o) = elem.occurs() {
                             use ::flat_ast::Occurs::*;
@@ -537,7 +550,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             }
                         }
                     } else {
-                        self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
+                        let bits = elem.bits().map_or(String::new(), |bits| format!(", {}", bits));
+                        self.write_if_else(&format!("!writer.set_{}({}{})", base, elem.name(), bits), &[
                             "return false;"
                         ], None)?;
                     }
@@ -590,7 +604,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 }
             } else {
-                self.write_if_else(&format!("!writer.set_{}({})", base, elem.name()), &[
+                let bits = elem.bits().map_or(String::new(), |bits| format!(", {}", bits));
+                self.write_if_else(&format!("!writer.set_{}({}{})", base, elem.name(), bits), &[
                     "return false;"
                 ], None)?;
             }
@@ -640,9 +655,20 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 }
             } else {
-                self.write_if_else(&format!("!reader.get_{}({})", base, elem.name()), &[
+                // if we have a bitfield, we need to have a temp variable
+                let (name, bits) = if let Some(bits) = elem.bits() {
+                    let temp_name = format!("{}_temp", elem.name());
+                    cg!(self, "{} {};", base, temp_name);
+                    (temp_name, format!(", {}", bits))
+                } else {
+                    (elem.name().to_owned(), "".to_string())
+                };
+                self.write_if_else(&format!("!reader.get_{}({}{})", base, name, bits), &[
                     "return false;"
                 ], None)?;
+                if elem.bits().is_some() {
+                    cg!(self, "{} = {};", elem.name(), name);
+                }
             }
         }
         cg!(self, "return true;");
