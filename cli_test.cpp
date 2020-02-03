@@ -5,7 +5,8 @@ using namespace RoseCommon::Packet;
 
 
 
-CliTest::CliTest() : CRosePacket(CliTest::PACKET_ID) {}
+CliTest::CliTest() : CRosePacket(CliTest::PACKET_ID) {
+}
 
 CliTest::CliTest(CRoseReader reader) : CRosePacket(reader) {
     if (!reader.get_uint8_t(test)) {

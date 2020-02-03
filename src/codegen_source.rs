@@ -80,10 +80,22 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
 
         cg!(self);
-        cg!(self, "{0}::{0}() : CRosePacket({0}::PACKET_ID) {{}}", packet.class_name());
+        cg!(self, "{0}::{0}() : CRosePacket({0}::PACKET_ID) {{", packet.class_name());
+        if packet.class_name().starts_with("Srv") {
+            self.indent();
+            cg!(self, "set_server_packet();");
+            self.dedent();
+            cg!(self, "}}");
+        } else {
+            cg!(self, "}}");
+        }
         cg!(self);
         cg!(self, "{0}::{0}(CRoseReader reader) : CRosePacket(reader) {{", packet.class_name());
         self.indent();
+        if packet.class_name().starts_with("Srv") {
+            cg!(self, "set_server_packet();");
+            cg!(self);
+        }
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {

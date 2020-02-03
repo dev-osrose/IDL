@@ -1,6 +1,6 @@
 #pragma once
 
-/* Generated with IDL v0.1.1 */
+/* Generated with IDL v0.1.2 */
 
 
 #include "packetfactory.h"
@@ -26,8 +26,8 @@ class CliTest : public CRosePacket {
         
         
         static CliTest create(const uint8_t& test);
-        static CliTest create(const uint8_t*);
-        static std::unique_ptr<CliTest> allocate(const uint8_t*);
+        static CliTest create(const uint8_t* buffer);
+        static std::unique_ptr<CliTest> allocate(const uint8_t* buffer);
     
     protected:
         virtual bool pack(CRoseBasePolicy&) const override;
