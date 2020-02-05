@@ -66,7 +66,15 @@ pub struct Element {
     is_defined: bool,
     special_read_write: Option<String>,
     bits: Option<u32>,
-    occur_is_defined: bool
+    occur_is_defined: bool,
+    bitset: Option<Bitset>
+}
+
+#[derive(Debug, Clone)]
+pub struct Bitset {
+    pub size: u32,
+    pub start: u32,
+    pub name: String
 }
 
 #[derive(Debug)]
@@ -322,11 +330,12 @@ impl Element {
                , anonymous: bool
                , reference: bool
                , special_read_write: Option<String>
-               , bits: Option<u32>) -> Self {
+               , bits: Option<u32>
+               , bitset: Option<Bitset>) -> Self {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
                  is_defined: false, special_read_write, bits,
-                 occur_is_defined: false }
+                 occur_is_defined: false, bitset }
     }
     
     pub fn name(&self) -> &String {
@@ -399,12 +408,31 @@ impl Element {
         self.bits = Some(bits);
     }
 
+    pub fn bitset(&self) -> &Option<Bitset> {
+        &self.bitset
+    }
+
+    pub fn bitset_mut(&mut self) -> &mut Option<Bitset> {
+        &mut self.bitset
+    }
+
+    #[allow(dead_code)]
+    pub fn set_bitset(&mut self, bitset: Bitset) {
+        self.bitset = Some(bitset);
+    }
+
     pub fn set_occur_is_defined(&mut self) {
         self.occur_is_defined = true;
     }
 
     pub fn occur_is_defined(&self) -> bool {
         self.occur_is_defined
+    }
+}
+
+impl Bitset {
+    pub fn new(size: u32, start: u32, name: String) -> Self {
+        Self {size, start, name}
     }
 }
 
