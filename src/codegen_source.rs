@@ -173,19 +173,24 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         cg!(self, "{} = static_cast<{}>({});", elem.name(), elem.type_(), temp_name);
                         cg!(self);
                     } else {
-                        // if we have a bitfield, we need to introduce a temporary variable
-                        let (name, bits) = if let Some(bits) = elem.bits() {
-                            let temp_name = format!("{}_temp", elem.name());
-                            cg!(self, "{} {};", base, temp_name);
-                            (temp_name, format!(", {}", bits))
+                        let name = if let Some(bitset) = elem.bitset() {
+                            if bitset.start == 0 {
+                                Some(&bitset.name)
+                            } else {
+                                None
+                            }
                         } else {
-                            (name, "".to_string())
+                            Some(elem.name())
                         };
-                        self.write_if_else(&format!("!reader.get_{}({}{})", base, name, bits), &[
-                            "return;"
-                        ], None)?;
-                        if elem.bits().is_some() {
-                            cg!(self, "{} = {};", elem.name(), name);
+                        let base = if elem.bitset().is_some() {
+                            "bitset".to_owned()
+                        } else {
+                            base
+                        };
+                        if let Some(name) = name {
+                            self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
+                                    "return false;"
+                                ], None)?;
                         }
                     }
                 },
@@ -230,8 +235,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
                     } else {
-                        let size = elem.bits().map_or(elem.type_().clone(), |n| n.to_string());
-                        format!("sizeof({})", size)
+                        let rhs = elem.bitset().as_ref().map_or(Some(format!("sizeof({})", elem.type_())), |bitset| if bitset.start == 0 {
+                            Some(format!("{} / 8", bitset.size))
+                        } else {
+                            None
+                        });
+                        
+                        if rhs.is_none() {
+                            continue;
+                        }
+                        rhs.unwrap()
                     };
                     let rhs = if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
@@ -242,7 +255,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         rhs
                     };
-                    cg!(self, "size += {}; // {}", rhs, elem.name());
+                    let name = if let Some(bitset) = elem.bitset() {
+                        &bitset.name
+                    } else {
+                        elem.name()
+                    };
+                    cg!(self, "size += {}; // {}", rhs, name);
                 },
                 _ => {}
             }
@@ -278,8 +296,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
                             format!("{}::size()", elem.type_())
                         } else {
-                            let size = elem.bits().map_or(elem.type_().clone(), |n| n.to_string());
-                            format!("sizeof({})", size)
+                            let rhs = elem.bitset().as_ref().map_or(Some(format!("sizeof({})", elem.type_())), |bitset| if bitset.start == 0 {
+                                Some(format!("{} / 8", bitset.size))
+                            } else {
+                                None
+                            });
+                            
+                            if rhs.is_none() {
+                                continue;
+                            }
+                            rhs.unwrap()
                         };
                         let rhs = if let Some(ref o) = elem.occurs() {
                             use ::flat_ast::Occurs::*;
@@ -290,7 +316,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         } else {
                             rhs
                         };
-                        cg!(self, "size += {}; // {}", rhs, elem.name());
+                        let name = if let Some(bitset) = elem.bitset() {
+                            &bitset.name
+                        } else {
+                            elem.name()
+                        };
+                        cg!(self, "size += {}; // {}", rhs, name);
                     }
                     cg!(self, "return size;");
                     self.dedent();
@@ -367,7 +398,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         };
         cg!(self, "{0}& {0}::set_{1}(const {2}{3} {1}) {{", class_name, elem.name(), type_, reference);
         self.indent();
-        cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
+        if let Some(bitset) = elem.bitset() {
+            let bits = elem.bits().unwrap();
+            cg!(self, "for (size_t i = 0; i < {}; ++i) {{", bits);
+            self.indent();
+            cg!(self, "this->{}[i + {}] = {} & (1 << i);", bitset.name, bitset.start, elem.name());
+            self.dedent();
+            cg!(self, "}}");
+        } else {
+            cg!(self, "this->{1}{0} = {0};", elem.name(), if is_choice { "data." } else { "" });
+        }
         cg!(self, "return *this;");
         self.dedent();
         cg!(self, "}}");
@@ -425,7 +465,18 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         let is_const = if elem.reference() { "const " } else { "" };
         cg!(self, "{4}{2}{3} {0}::get_{1}() const {{", class_name, elem.name(), type_, reference, is_const);
         self.indent();
-        cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
+        if let Some(bitset) = elem.bitset() {
+            let bits = elem.bits().unwrap();
+            cg!(self, "{} {}_tmp = 0;", elem.type_(), elem.name());
+            cg!(self, "for (size_t i = 0; i < {}; ++i) {{", bits);
+            self.indent();
+            cg!(self, "{}_tmp |= (this->{}[i + {}] << i);", elem.name(), bitset.name, bitset.start);
+            self.dedent();
+            cg!(self, "}}");
+            cg!(self, "return {}_tmp;", elem.name());
+        } else {
+            cg!(self, "return {1}{0};", elem.name(), if is_choice { "data." } else { "" });
+        }
         self.dedent();
         cg!(self, "}}");
         cg!(self);
@@ -562,10 +613,25 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             }
                         }
                     } else {
-                        let bits = elem.bits().map_or(String::new(), |bits| format!(", {}", bits));
-                        self.write_if_else(&format!("!writer.set_{}({}{})", base, elem.name(), bits), &[
-                            "return false;"
-                        ], None)?;
+                        let name = if let Some(bitset) = elem.bitset() {
+                            if bitset.start == 0 {
+                                Some(&bitset.name)
+                            } else {
+                                None
+                            }
+                        } else {
+                            Some(elem.name())
+                        };
+                        let base = if elem.bitset().is_some() {
+                            "bitset".to_owned()
+                        } else {
+                            base
+                        };
+                        if let Some(name) = name {
+                            self.write_if_else(&format!("!writer.set_{}({})", base, name), &[
+                                    "return false;"
+                                ], None)?;
+                        }
                     }
                 },
                 _ => {}
@@ -616,10 +682,25 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 }
             } else {
-                let bits = elem.bits().map_or(String::new(), |bits| format!(", {}", bits));
-                self.write_if_else(&format!("!writer.set_{}({}{})", base, elem.name(), bits), &[
-                    "return false;"
-                ], None)?;
+                let name = if let Some(bitset) = elem.bitset() {
+                    if bitset.start == 0 {
+                        Some(&bitset.name)
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(elem.name())
+                };
+                let base = if elem.bitset().is_some() {
+                    "bitset".to_owned()
+                } else {
+                    base
+                };
+                if let Some(name) = name {
+                    self.write_if_else(&format!("!writer.set_{}({})", base, name), &[
+                            "return false;"
+                        ], None)?;
+                }
             }
         }
         cg!(self, "return true;");
@@ -667,19 +748,24 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 }
             } else {
-                // if we have a bitfield, we need to have a temp variable
-                let (name, bits) = if let Some(bits) = elem.bits() {
-                    let temp_name = format!("{}_temp", elem.name());
-                    cg!(self, "{} {};", base, temp_name);
-                    (temp_name, format!(", {}", bits))
+                let name = if let Some(bitset) = elem.bitset() {
+                    if bitset.start == 0 {
+                        Some(&bitset.name)
+                    } else {
+                        None
+                    }
                 } else {
-                    (elem.name().to_owned(), "".to_string())
+                    Some(elem.name())
                 };
-                self.write_if_else(&format!("!reader.get_{}({}{})", base, name, bits), &[
-                    "return false;"
-                ], None)?;
-                if elem.bits().is_some() {
-                    cg!(self, "{} = {};", elem.name(), name);
+                let base = if elem.bitset().is_some() {
+                    "bitset".to_owned()
+                } else {
+                    base
+                };
+                if let Some(name) = name {
+                    self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
+                            "return false;"
+                        ], None)?;
                 }
             }
         }
@@ -702,6 +788,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             } else if elem.type_() == "uint64_t" || elem.type_() == "double" {
                 64
             } else {
+                debug!("type {} not recognized!", elem.type_());
                 0
             };
             let s = if let Some(bits) = elem.bits() { s - bits } else { s };
@@ -716,7 +803,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             16 => "uint16_t",
             32 => "uint32_t",
             64 => "uint64_t",
-            _ => panic!("Not a normal size for union!")
+            _ => panic!("{} is not an expected size for an union!", max_size)
         };
         self.write_if_else(&format!("!writer.set_{}(data.{})", max_size, member), &[
                 "return false;"

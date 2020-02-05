@@ -7,7 +7,10 @@ use std::collections::HashSet;
 struct Context<'a> {
     packet: &'a mut flat_ast::Packet,
     path: Vec<String>,
-    complex_types: HashSet<String>
+    complex_types: HashSet<String>,
+    is_in_choice: bool,
+    bitsets: u32,
+    current_bitset: Option<u32>
 }
 
 impl<'a> Context<'a> {
@@ -52,6 +55,72 @@ impl<'a> Context<'a> {
         }
         None
     }
+
+    fn find_bitset_mut_ref(&mut self, id: u32) -> Vec<&mut flat_ast::Element> {
+        let mut res = Vec::new();
+        let id = format!("bitset{}", id);
+        for content in self.packet.contents_mut() {
+            use self::flat_ast::PacketContent::{Element, Complex};
+            match content {
+                Element(e) => {
+                    if let Some(bitset) = e.bitset() {
+                        if bitset.name == id {
+                            res.push(e);
+                        }
+                    }
+                },
+                Complex(c) => {
+                    use self::flat_ast::ComplexTypeContent::Seq;
+                    match c.content_mut() {
+                        Seq(s) => {
+                            for elem in s.elements_mut() {
+                                if let Some(bitset) = elem.bitset() {
+                                    if bitset.name == id {
+                                        res.push(elem);
+                                    }
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                },
+                _ => {}
+            }
+        }
+        res
+    }
+
+    fn add_bits(&mut self, bits: u32) -> Option<u32> {
+        if self.is_in_choice {
+            return None;
+        }
+        if let Some(ref mut bitset) = self.current_bitset {
+            let old = *bitset;
+            *bitset += bits;
+            return if *bitset < 64 {
+                Some(old)
+            } else {
+                panic!("Error, cannot have more than 64 bits bitfields in a row!");
+            };
+        }
+        self.current_bitset = Some(bits);
+        self.bitsets += 1;
+        Some(0)
+    }
+
+    fn stop_bits(&mut self) {
+        if let Some(bitset) = self.current_bitset {
+            if bitset % 8 != 0 {
+                panic!(format!("Error, {} bits cannot be aligned", bitset));
+            }
+            trace!("generating bitset of {} bits", bitset);
+            for elem in self.find_bitset_mut_ref(self.bitsets) {
+                trace!("{}", elem.name());
+                elem.bitset_mut().as_mut().unwrap().size = bitset;
+            }
+            self.current_bitset = None;
+        }
+    }
 }
 
 pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_ast::Packet, ::failure::Error> {
@@ -60,9 +129,15 @@ pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_
         let mut ctx = Context {
             packet: &mut packet,
             path: Vec::new(),
-            complex_types: HashSet::new()
+            complex_types: HashSet::new(),
+            is_in_choice: false,
+            bitsets: 0,
+            current_bitset: None
         };
         flatten_(search_path, p, &mut ctx)?;
+        if ctx.bitsets != 0 {
+            ctx.add_content(flat_ast::PacketContent::Include("bitset".to_owned(), true));
+        }
     }
     Ok(packet)
 }
@@ -95,6 +170,7 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
             }
         }
     }
+    ctx.stop_bits();
     Ok(())
 }
 
@@ -154,6 +230,7 @@ fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
     };
     let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(cot));
+    ctx.stop_bits();
 }
 
 fn flatten_anon_complex(c: &ast::AnonComplexType, ctx: &mut Context, element_name: &Option<String>) -> flat_ast::ComplexType {
@@ -209,6 +286,7 @@ fn flatten_seq(s: &ast::Sequence, ctx: &mut Context) -> flat_ast::Sequence {
 fn flatten_choice(c: &ast::Choice, ctx: &mut Context) -> flat_ast::Choice {
     let mut choice = flat_ast::Choice::new(c.occurs().clone(), c.size_occurs().clone(), c.doc().clone());
     let mut max_id = 0;
+    ctx.is_in_choice = true;
     for content in c.contents() {
         let element = flatten_seq_content(content, ctx, max_id);
         if max_id <= element.id() {
@@ -216,6 +294,7 @@ fn flatten_choice(c: &ast::Choice, ctx: &mut Context) -> flat_ast::Choice {
         }
         choice.add_element(element);
     }
+    ctx.is_in_choice = false;
     choice
 }
 
@@ -252,7 +331,7 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
     let complex = flat_ast::ComplexType::new(name.clone(), content, doc.clone(), true, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(complex));
     flat_ast::Element::new(name.clone(), name.clone(), id,
-        flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None, None)
+        flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None, None, None)
 }
 
 fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast::Element {
@@ -277,9 +356,19 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
             (elem_name, type_name, true)
         }
     };
+    let bitset = if let Some(bits) = elem.bits() {
+        if let Some(start) = ctx.add_bits(bits) {
+            Some(flat_ast::Bitset::new(0, start, format!("bitset{}", ctx.bitsets)))
+        } else {
+            None
+        }
+    } else {
+        ctx.stop_bits();
+        None
+    };
     let mut element = flat_ast::Element::new(name, type_, id, init, elem.occurs().clone(),
         elem.size_occurs().clone(), elem.doc().clone(), anonymous, elem.reference(),
-        elem.read_write().clone(), elem.bits());
+        elem.read_write().clone(), elem.bits(), bitset);
     if let Some(ref t) = elem.enum_type() {
         element.set_enum_type(t.clone());
     }

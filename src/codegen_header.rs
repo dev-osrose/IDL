@@ -238,6 +238,13 @@ namespace Packet {{
     fn element(&mut self, elem: &Element) -> Result<()> {
         self.doc(elem.doc())?;
 
+        if let Some(bitset) = elem.bitset() {
+            if bitset.start == 0 {
+                cg!(self, "std::bitset<{}> {};", bitset.size, bitset.name);
+            }
+            return Ok(());
+        }
+
         let (type_, bits) = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
             let type_ = match o {
