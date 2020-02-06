@@ -189,7 +189,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         };
                         if let Some(name) = name {
                             self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
-                                    "return false;"
+                                    "return;"
                                 ], None)?;
                         }
                     }
