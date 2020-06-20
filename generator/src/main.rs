@@ -1,4 +1,4 @@
-extern crate packet_schema;
+extern crate schema;
 extern crate failure;
 extern crate heck;
 extern crate clap;
@@ -9,8 +9,8 @@ mod flat_ast;
 mod flatten;
 mod writer;
 #[macro_use]
-mod codegen_header;
-mod codegen_source;
+//mod codegen_header;
+//mod codegen_source;
 mod graph_passes;
 
 use clap::{App, Arg};
@@ -26,7 +26,6 @@ fn main() -> Result<(), failure::Error> {
         .arg(Arg::with_name("INPUT")
                 .help("Sets the input xml file")
                 .required(true)
-                .multiple(true)
                 .index(1))
         .arg(Arg::with_name("outputh")
                 .help("uses selected output directory for header")
@@ -62,25 +61,23 @@ fn main() -> Result<(), failure::Error> {
         debug!("filename {:?}", filename);
         use std::fs::File;
         let file = File::open(filename)?;
-        let packet = packet_schema::Reader::load_packet(file)?;
-        if packet.type_() == "tmp" {
-            continue;
-        }
+        let packet = schema::Reader::load_packet(file)?;
         let packet = flatten::flatten(filename.parent().unwrap_or(std::path::Path::new("./")), &packet)?;
         trace!("packet {:?}", packet);
         let packet = graph_passes::run(packet)?;
         debug!("packet {:#?}", packet);
-        let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", packet.filename()))?;
+        let filename = "test";
+        let header_output = File::create(outputh_dir.to_str().unwrap().to_owned() + &format!("/{}.h", filename))?;
         debug!("header {:?}", header_output);
-        let mut writer = writer::Writer::new(header_output);
-        let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer, VERSION.to_string());
-        codegen.generate(&packet)?;
-        let source_output = File::create(outputc_dir.to_str().unwrap().to_owned() + &format!("/{}.cpp", packet.filename()))?;
+        //let mut writer = writer::Writer::new(header_output);
+        //let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer, VERSION.to_string());
+        //codegen.generate(&packet)?;
+        let source_output = File::create(outputc_dir.to_str().unwrap().to_owned() + &format!("/{}.cpp", filename))?;
         debug!("source {:?}", source_output);
-        let mut writer = writer::Writer::new(source_output);
-        let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer);
-        codegen.generate(&packet)?;
-        info!("Generated packet {}", packet.type_());
+        //let mut writer = writer::Writer::new(source_output);
+        //let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer);
+        //codegen.generate(&packet)?;
+        info!("Generated packet structure");
     }
     Ok(())
 }

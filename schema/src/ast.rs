@@ -2,33 +2,31 @@ use std;
 
 #[derive(Debug)]
 pub struct Packet {
-    type_: String,
     contents: Vec<PacketContent>,
     doc: Option<String>
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PacketContent {
     IncludeXml(String),
-    Include(String, bool),
     SimpleType(SimpleType),
     ComplexType(ComplexType),
     Element(Element)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SimpleType {
     name: String,
     contents: Vec<SimpleTypeContent>,
     doc: Option<String>
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SimpleTypeContent {
     Restriction(Restriction)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Restriction {
     base: String,
     doc: Option<String>,
@@ -38,9 +36,6 @@ pub struct Restriction {
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub enum RestrictionContent {
     Enumeration(Enumeration),
-    Length(u32),
-    MinValue(String),
-    MaxValue(String)
 }
 
 #[derive(Debug, PartialEq, Eq, Ord)]
@@ -56,14 +51,14 @@ impl std::cmp::PartialOrd for Enumeration {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ComplexType {
     name: String,
     content: ComplexTypeContent,
     doc: Option<String>
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ComplexTypeContent {
     Seq(Sequence),
     Choice(Choice),
@@ -72,71 +67,50 @@ pub enum ComplexTypeContent {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Occurs {
-    Num(String),
+    Num(u16),
     Unbounded
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Sequence {
-    occurs: Option<Occurs>,
-    size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
     doc: Option<String>,
-    inline: bool
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SequenceContent {
     Element(Element),
-    Choice(Choice),
-    Seq(Sequence)
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Choice {
-    occurs: Option<Occurs>,
-    size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
     doc: Option<String>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ElementInitValue {
     Default(String),
     Create,
     None
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Element {
     type_: ElementType,
     init: ElementInitValue,
     doc: Option<String>,
     occurs: Option<Occurs>,
-    size_occurs: Option<String>,
-    reference: bool,
-    special_read_write: Option<String>,
-    enum_type: Option<String>,
-    bits: Option<u32>
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ElementType {
     Named { name: String, type_: String },
-    Ref(String),
-    Complex(Option<String>, AnonComplexType)
-}
-
-#[derive(Debug)]
-pub struct AnonComplexType {
-    content: ComplexTypeContent,
-    doc: Option<String>
 }
 
 impl Packet {
-    pub fn new(type_: String) -> Self {
+    pub fn new() -> Self {
         Packet {
-            type_: type_,
             contents: Vec::new(),
             doc: None
         }
@@ -144,10 +118,6 @@ impl Packet {
 
     pub fn add_content(&mut self, content: PacketContent) {
         self.contents.push(content);
-    }
-
-    pub fn type_(&self) -> &String {
-        &self.type_
     }
 
     pub fn doc(&self) -> &Option<String> {
@@ -193,35 +163,11 @@ impl ComplexType {
     }
 }
 
-impl AnonComplexType {
-    pub fn new(content: ComplexTypeContent) -> Self {
-        AnonComplexType {
-            content: content,
-            doc: None
-        }
-    }
-
-    pub fn doc(&self) -> &Option<String> {
-        &self.doc
-    }
-
-    pub fn set_doc(&mut self, doc: String) {
-        self.doc = Some(doc);
-    }
-
-    pub fn content(&self) -> &ComplexTypeContent {
-        &self.content
-    }
-}
-
 impl Sequence {
-    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>, inline: bool) -> Self {
+    pub fn new(doc: Option<String>) -> Self {
         Sequence {
             contents: Vec::new(),
-            occurs: occurs,
-            size_occurs: size_occurs,
-            doc: doc,
-            inline
+            doc
         }
     }
 
@@ -233,10 +179,6 @@ impl Sequence {
         &self.contents
     }
 
-    pub fn occurs(&self) -> &Option<Occurs> {
-        &self.occurs
-    }
-
     pub fn doc(&self) -> &Option<String> {
         &self.doc
     }
@@ -244,26 +186,12 @@ impl Sequence {
     pub fn set_doc(&mut self, doc: String) {
         self.doc = Some(doc);
     }
-
-    pub fn size_occurs(&self) -> &Option<String> {
-        &self.size_occurs
-    }
-
-    pub fn inline(&self) -> bool {
-        self.inline
-    }
-
-    pub fn set_inline(&mut self, inline: bool) {
-        self.inline = inline;
-    }
 }
 
 impl Choice {
-    pub fn new(occurs: Option<Occurs>, size_occurs: Option<String>, doc: Option<String>) -> Self {
+    pub fn new(doc: Option<String>) -> Self {
         Choice {
             contents: Vec::new(),
-            occurs: occurs,
-            size_occurs: size_occurs,
             doc: doc
         }
     }
@@ -276,10 +204,6 @@ impl Choice {
         &self.contents
     }
 
-    pub fn occurs(&self) -> &Option<Occurs> {
-        &self.occurs
-    }
-
     pub fn doc(&self) -> &Option<String> {
         &self.doc
     }
@@ -287,30 +211,17 @@ impl Choice {
     pub fn set_doc(&mut self, doc: String) {
         self.doc = Some(doc);
     }
-
-    pub fn size_occurs(&self) -> &Option<String> {
-        &self.size_occurs
-    }
 }
 
 impl Element {
-    pub fn new(type_: ElementType, init: ElementInitValue, occurs: Option<Occurs>, size_occurs: Option<String>, reference: bool,
-               special_read_write: Option<String>, enum_type: Option<String>, bits: Option<u32>) -> Self {
+    pub fn new(type_: ElementType, init: ElementInitValue,
+                occurs: Option<Occurs>) -> Self {
         Element {
-            type_: type_,
-            occurs: occurs,
-            size_occurs: size_occurs,
+            type_,
+            occurs,
             doc: None,
-            init: init,
-            reference: reference,
-            special_read_write,
-            enum_type,
-            bits
+            init,
         }
-    }
-
-    pub fn reference(&self) -> bool {
-        self.reference
     }
 
     pub fn type_(&self) -> &ElementType {
@@ -331,34 +242,6 @@ impl Element {
 
     pub fn init(&self) -> &ElementInitValue {
         &self.init
-    }
-
-    pub fn size_occurs(&self) -> &Option<String> {
-        &self.size_occurs
-    }
-
-    pub fn read_write(&self) -> &Option<String> {
-        &self.special_read_write
-    }
-
-    pub fn set_read_write(&mut self, read_write: String) {
-        self.special_read_write = Some(read_write);
-    }
-
-    pub fn enum_type(&self) -> &Option<String> {
-        &self.enum_type
-    }
-
-    pub fn set_enum_type(&mut self, enum_type: String) {
-        self.enum_type = Some(enum_type);
-    }
-
-    pub fn bits(&self) -> Option<u32> {
-        self.bits
-    }
-
-    pub fn set_bits(&mut self, bits: u32) {
-        self.bits = Some(bits);
     }
 }
 

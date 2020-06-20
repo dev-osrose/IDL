@@ -1,5 +1,5 @@
 [package]
-name = "packet_schema"
+name = "schema"
 version = "0.1.0"
 authors = ["L3nn0x <dragon83.super@gmail.com>"]
 
@@ -9,4 +9,4 @@ failure = "0.1"
 log = "0.4"
 
 [lib]
-name = "packet_schema"
+name = "schema"

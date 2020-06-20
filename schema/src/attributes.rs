@@ -202,7 +202,7 @@ impl Parse for ::ast::Occurs {
         use ::ast::Occurs;
         match val {
             "unbounded" => Ok(Occurs::Unbounded),
-            s => Ok(Occurs::Num(s.to_owned()))
+            s => Ok(Occurs::Num(Parse::parse(s)?))
         }
     }
 }

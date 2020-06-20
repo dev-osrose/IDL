@@ -4,6 +4,7 @@ use ::ast::Packet;
 use ::error::ParseError;
 use ::attributes::Attributes;
 use ::xml::reader::{EventReader,XmlEvent};
+use ::parse::Either;
 
 pub struct Reader {
     reader: EventReader<Box<dyn Read>>,
@@ -12,7 +13,7 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn load_packet<R: Read+ 'static>(r: R) -> Result<Packet, ::failure::Error> {
+    pub fn load_packet<R: Read + 'static>(r: R) -> Result<Packet, ::failure::Error> {
         let mut reader = Reader::new(Box::new(r));
         reader.read()
     }
@@ -31,22 +32,24 @@ impl Reader {
 
     fn read(&mut self) -> Result<Packet, ::failure::Error> {
         if let XmlEvent::StartDocument{..} = self.next()? {
-            let mut packet = Packet::new("tmp".to_string());
+            let mut tmp_packet = Packet::new();
             for item in self.map(&[
                                 ("packet", &::parse::parse_packet),
                                 ("simpleType", &::parse::parse_simple_type),
                                 ("complexType", &::parse::parse_complex_type),
-                                ("include", &::parse::parse_include),
                                 ("includeXml", &::parse::parse_include_xml)
             ])? {
-                if item.type_() != "tmp" {
-                    return Ok(item);
-                }
-                for content in item.into_contents() {
-                    packet.add_content(content);
+                match item {
+                    Either::A(mut packet) => {
+                        for content in tmp_packet.into_contents() {
+                            packet.add_content(content);
+                        }
+                        return Ok(packet);
+                    },
+                    Either::B(content) => tmp_packet.add_content(content)
                 }
             }
-            return Ok(packet);
+            return Ok(tmp_packet);
         }
         Err(ParseError::new("Expecting startDocument").into())
     }
@@ -171,4 +174,263 @@ impl Reader {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::*;
+
+    fn create_cursor(s: &'static str) -> std::io::Cursor<&str> {
+        std::io::Cursor::new(s)
+    }
+
+    #[test]
+    fn empty_packet() {
+        let c = create_cursor("<packet></packet>");
+        let packet = Reader::load_packet(c);
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(0, packet.contents().len());
+    }
+
+    #[test]
+    fn empty_packet_error() {
+        let c = create_cursor("<packet>");
+        let packet = Reader::load_packet(c);
+        assert_eq!(true, packet.is_err());
+        assert_eq!("XML read error: 1:9 Unexpected end of stream: still inside the root element", packet.err().unwrap().to_string());
+    }
+
+    #[test]
+    fn empty_packet_doc() {
+        let packet = Reader::load_packet(create_cursor("<packet><documentation>plop</documentation></packet>"));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(true, packet.doc().is_some());
+        assert_eq!("plop", packet.doc().as_ref().unwrap());
+    }
+
+    #[test]
+    fn packet_one_empty_element() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element />
+        </packet>
+        "#));
+        assert_eq!(false, packet.is_ok());
+        assert_eq!("XML read error: name and/or type not found for element", packet.err().unwrap().to_string());
+    }
+
+    #[test]
+    fn packet_one_element() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" />
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_init() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" default = "42"/>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Default("42".to_string()), None);
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_init_none() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" default = "none"/>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::None, None);
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_occurs() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" occurs = "42"/>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Num(42)));
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_occurs_unbounded() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" occurs = "unbounded"/>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Unbounded));
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_simple_type() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <simpleType name = "Test">
+                <restriction base = "string">
+                    <enumeration value = "ZERO" />
+                    <enumeration value = "TWO" id = "2" />
+                </restriction>
+            </simpleType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let mut s = SimpleType::new("Test".to_string());
+        let mut r = Restriction::new("string".to_string());
+        r.add_content(RestrictionContent::Enumeration(Enumeration::new("ZERO".to_string(), None, None)));
+        r.add_content(RestrictionContent::Enumeration(Enumeration::new("TWO".to_string(), Some(2), None)));
+        s.add_content(SimpleTypeContent::Restriction(r));
+        assert_eq!(PacketContent::SimpleType(s), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_simple_type_elem() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <simpleType name = "Test">
+                <restriction base = "string">
+                    <enumeration value = "ZERO" />
+                    <enumeration value = "TWO" id = "2" />
+                </restriction>
+            </simpleType>
+            <element name = "test" type = "Test" />
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(2, packet.contents().len());
+        let mut s = SimpleType::new("Test".to_string());
+        let mut r = Restriction::new("string".to_string());
+        r.add_content(RestrictionContent::Enumeration(Enumeration::new("ZERO".to_string(), None, None)));
+        r.add_content(RestrictionContent::Enumeration(Enumeration::new("TWO".to_string(), Some(2), None)));
+        s.add_content(SimpleTypeContent::Restriction(r));
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "Test".to_string()}, ElementInitValue::Create, None);
+        assert_eq!(PacketContent::SimpleType(s), packet.contents()[0]);
+        assert_eq!(PacketContent::Element(elem), packet.contents()[1]);
+    }
+
+    #[test]
+    fn packet_complex_type_empty() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <complexType name = "Test">
+            </complexType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Empty);
+        assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_complex_type_sequence() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <complexType name = "Test">
+                <sequence>
+                </sequence>
+            </complexType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let s = Sequence::new(None);
+        let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Seq(s));
+        assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_complex_type_sequence_one_elem() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <complexType name = "Test">
+                <sequence>
+                    <element name = "test" type = "u8" />
+                </sequence>
+            </complexType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let mut s = Sequence::new(None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        s.add_content(SequenceContent::Element(elem));
+        let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Seq(s));
+        assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_complex_type_choice() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <complexType name = "Test">
+                <choice>
+                </choice>
+            </complexType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let c = Choice::new(None);
+        let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Choice(c));
+        assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_complex_type_choice_one_elem() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <complexType name = "Test">
+                <choice>
+                    <element name = "test" type = "u8" />
+                </choice>
+            </complexType>
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let mut c = Choice::new(None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        c.add_content(SequenceContent::Element(elem));
+        let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Choice(c));
+        assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
+    }
 }

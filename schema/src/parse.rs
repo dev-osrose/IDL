@@ -6,57 +6,42 @@ use std::fmt::Debug;
 
 type Result<T> = ::std::result::Result<T, ParseError>;
 
-pub fn parse_packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+pub fn parse_packet(r: &mut Reader, attrs: Attributes) -> Result<Either<Packet, PacketContent>> {
     trace!("reading packet in root");
-    packet(r, attrs)
+    Ok(Either::A(packet(r, attrs)?))
 }
 
-pub fn parse_simple_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+pub fn parse_simple_type(r: &mut Reader, attrs: Attributes) -> Result<Either<Packet, PacketContent>> {
     use self::PacketContent::*;
     trace!("reading simpleType in root");
-    let mut packet = Packet::new("tmp".to_string());
-    packet.add_content(SimpleType(simple_type(r, attrs)?));
-    Ok(packet)
+    Ok(Either::B(SimpleType(simple_type(r, attrs)?)))
 }
 
-pub fn parse_complex_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+pub fn parse_complex_type(r: &mut Reader, attrs: Attributes) -> Result<Either<Packet, PacketContent>> {
     use self::PacketContent::*;
     trace!("reading complexType in root");
-    let mut packet = Packet::new("tmp".to_string());
-    packet.add_content(ComplexType(complex_type(r, attrs)?));
-    Ok(packet)
+    Ok(Either::B(ComplexType(complex_type(r, attrs)?)))
 }
 
-pub fn parse_include(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
-    trace!("reading include in root");
-    let mut packet = Packet::new("tmp".to_string());
-    packet.add_content(include(r, attrs)?);
-    Ok(packet)
-}
-
-pub fn parse_include_xml(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+pub fn parse_include_xml(r: &mut Reader, attrs: Attributes) -> Result<Either<Packet, PacketContent>> {
     trace!("reading includeXml in root");
-    let mut packet = Packet::new("tmp".to_string());
-    packet.add_content(include_xml(r, attrs)?);
-    Ok(packet)
+    Ok(Either::B(include_xml(r, attrs)?))
 }
 
 #[derive(Debug)]
-enum Either<A: Debug, B: Debug> {
+pub enum Either<A: Debug, B: Debug> {
     A(A),
     B(B)
 }
 
-fn packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
+fn packet(r: &mut Reader, _attrs: Attributes) -> Result<Packet> {
     trace!("reading packet");
-    let type_ = attrs.get("ePacketType")?;
-    let mut packet = Packet::new(type_);
+    let mut packet = Packet::new();
 
     use self::PacketContent::*;
     use self::Either::*;
     for item in r.map(&[
         ("includeXml", &|r, attrs| Ok(A(include_xml(r, attrs)?))),
-        ("include", &|r, attrs| Ok(A(include(r, attrs)?))),
         ("element", &|r, attrs| Ok(A(Element(element(r, attrs)?)))),
         ("simpleType", &|r, attrs| Ok(A(SimpleType(simple_type(r, attrs)?)))),
         ("complexType", &|r, attrs| Ok(A(ComplexType(complex_type(r, attrs)?)))),
@@ -93,11 +78,8 @@ fn complex_content(r: &mut Reader) -> Result<(ComplexTypeContent, Option<String>
 
 fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
     trace!("reading sequence");
-    let occurs = attrs.parse_opt("occurs")?;
-    let size_occurs = attrs.parse_opt("occursSize")?;
-    let inline = attrs.parse_opt("inline")?.unwrap_or(false);
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
-    let mut seq = Sequence::new(occurs, size_occurs, doc, inline);
+    let mut seq = Sequence::new(doc);
     for content in contents {
         seq.add_content(content);
     }
@@ -106,10 +88,8 @@ fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
 
 fn choice(r: &mut Reader, attrs: Attributes) -> Result<Choice> {
     trace!("reading choice");
-    let occurs = attrs.parse_opt("occurs")?;
-    let size_occurs = attrs.parse_opt("occursSize")?;
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
-    let mut choice = Choice::new(occurs, size_occurs, doc);
+    let mut choice = Choice::new(doc);
     for content in contents {
         choice.add_content(content);
     }
@@ -125,8 +105,6 @@ fn seq_or_choice_children(r: &mut Reader, _: Attributes) -> Result<(Option<Strin
     trace!("reading sequence/choice content");
     for content in r.map(&[
         ("element", &|r, attrs| Ok(A(Element(element(r, attrs)?)))),
-        ("choice", &|r, attrs| Ok(A(Choice(choice(r, attrs)?)))),
-        ("sequence", &|r, attrs| Ok(A(Seq(seq(r, attrs)?)))),
         ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?)))
     ])? {
         match content {
@@ -146,13 +124,6 @@ fn complex_type(r: &mut Reader, attrs: Attributes) -> Result<ComplexType> {
         cot.set_doc(doc);
     }
     Ok(cot)
-}
-
-fn include(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
-    trace!("reading include");
-    let path = attrs.get("path")?;
-    let system = attrs.get_or("system", false);
-    Ok(PacketContent::Include(path, system))
 }
 
 fn include_xml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
@@ -188,9 +159,6 @@ fn restriction(r: &mut Reader, attrs: Attributes) -> Result<Restriction> {
     use self::RestrictionContent::*;
     for content in r.map(&[
         ("enumeration", &|r, attrs| Ok(A(Enumeration(enumeration(r, attrs)?)))),
-        ("minValue", &|_, attrs| Ok(A(MinValue(attrs.get("value")?)))),
-        ("maxValue", &|_, attrs| Ok(A(MaxValue(attrs.get("value")?)))),
-        ("length", &|_, attrs| Ok(A(Length(attrs.get("value")?)))),
         ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?)))
     ])? {
         match content {
@@ -220,11 +188,6 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let name = attrs.get_opt("name");
     let default = attrs.get_opt("default");
     let occurs = attrs.parse_opt("occurs")?;
-    let size_occurs = attrs.parse_opt("occursSize")?;
-    let reference = attrs.get_or("ref", false);
-    let read_write = attrs.get_opt("readWrite");
-    let enum_type = attrs.get_opt("enum");
-    let bits = attrs.parse_opt("bits")?;
     let mut doc = None;
     let init = match default {
         Some(def) => {
@@ -238,23 +201,18 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
         },
         None => ElementInitValue::Create
     };
-    let mut type_ = match (type_, name.clone()) {
+    let type_ = match (type_, name.clone()) {
         (Some(type_), Some(name)) => Some(ElementType::Named{name, type_}),
         _ => None
     };
 
-    use self::Either::*;
     for item in r.map(&[
-        ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?))),
-        ("complexType", &|r, attrs| Ok(A(anon_complex_type(r, attrs)?)))
+        ("documentation", &|r, attrs| Ok(documentation(r, attrs)?)),
     ])? {
-            match item {
-                A(item) => type_ = Some(ElementType::Complex(name.clone(), item)),
-                B(doc_) => doc = Some(doc_)
-            }
+        doc = Some(item.clone());
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs, size_occurs, reference, read_write, enum_type, bits);
+        let mut elem = Element::new(type_, init, occurs);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }
@@ -265,14 +223,4 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
 fn documentation(r: &mut Reader, _: Attributes) -> Result<String> {
     trace!("reading documentation");
     Ok(r.read_text()?.trim().to_string())
-}
-
-fn anon_complex_type (r: &mut Reader, _: Attributes) -> Result<AnonComplexType> {
-    trace!("reading anon_complex_type");
-    let (content, doc) = complex_content(r)?;
-    let mut cot = AnonComplexType::new(content);
-    if let Some(doc) = doc {
-        cot.set_doc(doc);
-    }
-    Ok(cot)
 }

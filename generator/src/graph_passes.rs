@@ -8,8 +8,6 @@ struct NodeId(usize);
 #[derive(Debug, Clone)]
 struct Edge {
     to: NodeId,
-    inline: bool,
-    is_defined: bool
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,8 +35,6 @@ struct Node {
     prune: bool,
     type_: NodeType,
     type_name: String,
-    is_defined: bool,
-    inline: bool,
     depth: u32
 }
 
@@ -80,7 +76,7 @@ impl Graph {
         Ok(node)
     }
 
-    fn add_node(&mut self, name: &str, type_: NodeType, type_name: &str, inline: bool) {
+    fn add_node(&mut self, name: &str, type_: NodeType, type_name: &str) {
         let id = NodeId(self.nodes.len());
         let mut node = Node {
             id,
@@ -90,12 +86,7 @@ impl Graph {
             edges: BTreeMap::new(),
             color: Color::White,
             prune: true,
-            inline,
             depth: 0,
-            is_defined: match type_ {
-                NodeType::TySimple | NodeType::TyEnum | NodeType::TySeq | NodeType::TyChoice => true,
-                _ => false
-            }
         };
         if type_ == NodeType::TyEnum {
             node.prune = false;
@@ -107,7 +98,7 @@ impl Graph {
         for elem in elements {
             let node = self.find_node(elem.type_());
             if let Some(to) = node {
-                let edge = Edge { to, inline: self.nodes[to.0].inline, is_defined: self.nodes[to.0].is_defined };
+                let edge = Edge { to };
                 let from_node = &mut self.nodes[from_node.0];
                 from_node.edges.insert(elem.id(), edge);
             }
@@ -115,7 +106,7 @@ impl Graph {
     }
 
     fn add_edge(&mut self, from_node: NodeId, to: NodeId) {
-        let edge = Edge { to, inline: self.nodes[to.0].inline, is_defined: self.nodes[to.0].is_defined };
+        let edge = Edge { to };
         let from_node = &mut self.nodes[from_node.0];
         let highest = from_node.edges.keys().fold(0, |id, edge| if edge > &id { *edge } else { id }) + 1;
         from_node.edges.insert(highest, edge);
@@ -142,7 +133,7 @@ impl Graph {
             node.prune = false;
         }
 
-        let is_defined = {
+        {
             let node = &self.nodes[node_id];
             for (elem_id, edge) in &node.edges {
                 let to = &self.nodes[edge.to.0];
@@ -152,12 +143,10 @@ impl Graph {
                     _ => {}
                 }
             }
-            node.edges.iter().fold(node.is_defined, |d, n| d || self.nodes[n.1.to.0].is_defined)
-        };
+        }
 
         {
             let node = &mut self.nodes[node_id];
-            node.is_defined = is_defined;
             for (elem_id, _edge) in node.edges.iter_mut() {
                 if cycles.contains(&elem_id) {
                     // TODO: do something here?
@@ -188,52 +177,24 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
 
     let mut graph = Graph::new();
 
-    let mut enums = ::std::collections::HashSet::<String>::new();
-
     for content in packet.contents() {
         use self::PacketContent::*;
         match content {
             Simple(ref s) => {
-                use self::SimpleTypeContent::*;
-                let mut enum_type = None;
-                for content in s.contents() {
-                    match content {
-                        Restriction(ref r) => {
-                            for content in r.contents() {
-                                use self::RestrictionContent::*;
-                                match content {
-                                    Enumeration(ref e) => {
-                                        enums.insert(e.value().to_owned());
-                                        enum_type = Some(r.base());
-                                    },
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                }
-                if let Some(enum_type) = enum_type {
-                    graph.add_node(s.name(), TyEnum, enum_type, false);
-                } else {
-                    graph.add_node(s.name(), TySimple, s.name(), false);
-                }
+                graph.add_node(s.name(), TySimple, s.name());
             },
             Complex(ref c) => {
                 use self::ComplexTypeContent::*;
                 match c.content() {
-                    Seq(s) => graph.add_node(c.name(), TySeq, c.name(), s.inline()),
-                    Choice(_) => graph.add_node(c.name(), TyChoice, c.name(), false),
-                    Empty => graph.add_node(c.name(), TyEmpty, c.name(), false)
+                    Seq(_) => graph.add_node(c.name(), TySeq, c.name()),
+                    Choice(_) => graph.add_node(c.name(), TyChoice, c.name()),
+                    Empty => graph.add_node(c.name(), TyEmpty, c.name())
                 }
             },
             _ => {}
         }
     }
 
-    trace!("enum values: {:?}", enums);
-
-    let mut vector = false;
-    let mut array = false;
     for content in packet.contents() {
         match content {
             PacketContent::Complex(ref c) => {
@@ -261,13 +222,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             PacketContent::Element(ref e) => {
                 trace!("adding start node {}", e.type_());
                 graph.add_start_node(&e.type_().to_owned().to_camel_case());
-                match e.occurs() {
-                    Some(self::Occurs::Unbounded) => vector = true,
-                    Some(self::Occurs::Num(_)) => array = true,
-                    _ => {}
-                };
-            },
-            _ => {}
+            }
         }
     }
 
@@ -332,86 +287,6 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             (Some(NodeId(a)), Some(NodeId(b))) => graph.nodes[b].depth.cmp(&graph.nodes[a].depth)
         }
     });
-
-    for content in packet.contents_mut() {
-        match content {
-            PacketContent::Complex(ref mut c) => {
-                let name = c.name().clone();
-                match c.content_mut() {
-                    ComplexTypeContent::Choice(ref mut cc) => {
-                        let node = graph.get_node(&name);
-                        if let Ok(node) = node {
-                            for edge in graph.nodes[node.0].edges.iter() {
-                                if edge.1.inline {
-                                    let name = &graph.nodes[edge.1.to.0].name;
-                                    if let Some(seq) = sequences.remove(name) {
-                                        for s in seq {
-                                            cc.add_inline_seqs(name.clone(), s);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    ComplexTypeContent::Seq(ref mut cc) => {
-                        for elem in cc.elements_mut() {
-                            let is_defined = match elem.occurs() {
-                                Some(Occurs::Num(ref s)) => {
-                                    let tmp = s.split("::").collect::<Vec<_>>();
-                                    let s = tmp.last().unwrap();
-                                    enums.contains(*s)
-                                },
-                                _ => false
-                            };
-                            if is_defined {
-                                elem.set_occur_is_defined();
-                            }
-                            let node = graph.get_node(elem.type_());
-                            if let Ok(node) = node {
-                                if graph.nodes[node.0].is_defined {
-                                    elem.set_is_defined();
-                                }
-                            }
-                        }
-                    },
-                    _ => {}
-                }
-            },
-            PacketContent::Simple(ref mut _s) => {
-            },
-            PacketContent::Element(ref mut e) => {
-                let is_defined = match e.occurs() {
-                    Some(Occurs::Num(ref s)) => {
-                        let tmp = s.split("::").collect::<Vec<_>>();
-                        let s = tmp.last().unwrap();
-                        enums.contains(*s)
-                    },
-                    _ => false
-                };
-                if is_defined {
-                    e.set_occur_is_defined();
-                }
-                let node = graph.get_node(e.type_());
-                if let Ok(node) = node {
-                    if graph.nodes[node.0].type_ == TyEnum {
-                        e.set_enum_type(graph.nodes[node.0].type_name.clone());
-                    }
-                    if graph.nodes[node.0].is_defined == true {
-                        e.set_is_defined();
-                    }
-                }
-            },
-            _ => {}
-        }
-    }
-
-    if vector {
-        packet.add_content(self::PacketContent::Include("vector".to_owned(), true));
-    }
-
-    if array {
-        packet.add_content(self::PacketContent::Include("array".to_owned(), true));
-    }
 
     Ok(packet)
 }
