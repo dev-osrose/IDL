@@ -135,7 +135,8 @@ fn include_xml(_: &mut Reader, attrs: Attributes) -> Result<PacketContent> {
 fn simple_type(r: &mut Reader, attrs: Attributes) -> Result<SimpleType> {
     trace!("reading simple_type");
     let name = attrs.get("name")?;
-    let mut sit = SimpleType::new(name);
+    let mut res = None;
+    let mut doc = None;
 
     use self::Either::*;
     for item in r.map(&[
@@ -143,11 +144,15 @@ fn simple_type(r: &mut Reader, attrs: Attributes) -> Result<SimpleType> {
         ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?)))
     ])? {
         match item {
-            A(item) => sit.add_content(SimpleTypeContent::Restriction(item)),
-            B(doc) => sit.set_doc(doc)
+            A(item) => res = Some(SimpleTypeContent::Restriction(item)),
+            B(doc_) => doc = Some(doc_)
         };
     }
-    Ok(sit)
+    if let Some(res) = res {
+        Ok(SimpleType::new(name, res, doc))
+    } else {
+        Err(ParseError::new(format!("No restriction found in simple type {}", name)))
+    }
 }
 
 fn restriction(r: &mut Reader, attrs: Attributes) -> Result<Restriction> {

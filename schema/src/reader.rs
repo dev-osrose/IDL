@@ -307,11 +307,10 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let mut s = SimpleType::new("Test".to_string());
         let mut r = Restriction::new("string".to_string());
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("ZERO".to_string(), None, None)));
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("TWO".to_string(), Some(2), None)));
-        s.add_content(SimpleTypeContent::Restriction(r));
+        let s = SimpleType::new("Test".to_string(), SimpleTypeContent::Restriction(r), None);
         assert_eq!(PacketContent::SimpleType(s), *packet.contents().last().unwrap());
     }
 
@@ -331,11 +330,10 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(2, packet.contents().len());
-        let mut s = SimpleType::new("Test".to_string());
         let mut r = Restriction::new("string".to_string());
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("ZERO".to_string(), None, None)));
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("TWO".to_string(), Some(2), None)));
-        s.add_content(SimpleTypeContent::Restriction(r));
+        let s = SimpleType::new("Test".to_string(), SimpleTypeContent::Restriction(r), None);
         let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "Test".to_string()}, ElementInitValue::Create, None);
         assert_eq!(PacketContent::SimpleType(s), packet.contents()[0]);
         assert_eq!(PacketContent::Element(elem), packet.contents()[1]);

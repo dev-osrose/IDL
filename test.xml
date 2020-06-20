@@ -1,2 +1,42 @@
 <packet>
+    <element name = "request" type = "Request" />
+    <element name = "response" type = "Response" />
+
+    <complexType name = "Request">
+        <choice>
+            <element name = "ping" type = "PingRequest" />
+            <element name = "login" type = "LoginRequest" />
+        </choice>
+    </complexType>
+    <complexType name = "Response">
+        <choice>
+            <element name = "pong" type = "PongResponse" />
+            <element name = "login" type = "LoginResponse" />
+        </choice>
+    </complexType>
+
+    <complexType name = "PingRequest" />
+    <complexType name = "PongResponse" />
+
+    <complexType name = "LoginRequest">
+        <sequence>
+            <element name = "username" type = "string" />
+            <element name = "password" type = "char" occurs = "32" />
+        </sequence>
+    </complexType>
+
+    <complexType name = "LoginResponse">
+        <choice>
+            <element name = "sessionID" type = "string" />
+            <element name = "error" type = "LoginError" />
+        </choice>
+    </complexType>
+
+    <simpleType name = "LoginError">
+        <restriction base = "string">
+            <enumeration value = "unknown_user" />
+            <enumeration value = "wrong_password" />
+            <enumeration value = "server_down" />
+        </restriction>
+    </simpleType>
 </packet>

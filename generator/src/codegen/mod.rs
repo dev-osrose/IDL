@@ -1,11 +1,8 @@
-pub mod cpp;
-pub mod rust;
-
 use super::flat_ast;
 use std::io::Result;
 
 #[macro_use]
-pub mod macros {
+mod macros {
     #[macro_export]
     macro_rules! cg {
         ($v:expr) => (($v).write("")?);
@@ -13,6 +10,9 @@ pub mod macros {
         ($v:expr, $fmt:expr, $($arg:tt)*) => (($v).write(format!($fmt, $($arg)*))?);
     }
 }
+
+pub mod cpp;
+pub mod rust;
 
 pub trait Codegen {
     fn generate(&mut self, packet: &flat_ast::Packet) -> Result<Vec<String>>;

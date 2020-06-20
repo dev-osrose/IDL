@@ -35,6 +35,7 @@ fn main() -> Result<(), failure::Error> {
                 .help("Specify which language the schema should be generated for")
                 .short("g")
                 .long("generator")
+                .takes_value(true)
                 .possible_values(&["cpp", "rust"])
                 .required(true))
         .arg(Arg::with_name("v")
@@ -55,7 +56,7 @@ fn main() -> Result<(), failure::Error> {
     let output_dir = std::path::Path::new(matches.value_of("output").unwrap_or("./"));
 
     let filename = std::path::Path::new(matches.value_of("INPUT").unwrap());
-    debug!("filename {:?}", filename);
+    debug!("input filename {:?}", filename);
     use std::fs::File;
     let file = File::open(filename)?;
     let packet = schema::Reader::load_packet(file)?;
@@ -63,14 +64,15 @@ fn main() -> Result<(), failure::Error> {
     trace!("packet {:?}", packet);
     let packet = graph_passes::run(packet)?;
     debug!("packet {:#?}", packet);
+    let stem = filename.file_stem().unwrap().to_str().unwrap();
     let mut generator: Box<dyn codegen::Codegen> = match matches.value_of("generator").unwrap() {
-        "cpp" => Box::new(codegen::cpp::Generator::new(output_dir, VERSION)),
-        "rust" => Box::new(codegen::rust::Generator::new(output_dir, VERSION)),
+        "cpp" => Box::new(codegen::cpp::Generator::new(output_dir, stem, VERSION)),
+        "rust" => Box::new(codegen::rust::Generator::new(output_dir, stem, VERSION)),
         _ => unreachable!()
     };
     for file in generator.generate(&packet)? {
         debug!("wrote {}", file);
     }
-    info!("Generated packet structure");
+    info!("Generated files");
     Ok(())
 }

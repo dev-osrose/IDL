@@ -208,13 +208,11 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             },
             PacketContent::Simple(ref s) => {
                 use self::SimpleTypeContent::*;
-                for content in s.contents() {
-                    match content {
-                        Restriction(ref r) => {
-                            if let Ok(node) = graph.get_node(&r.base().to_owned().to_camel_case()) {
-                                let to = graph.get_node(s.name()).unwrap();
-                                graph.add_edge(to, node);
-                            }
+                match s.content() {
+                    Restriction(ref r) => {
+                        if let Ok(node) = graph.get_node(&r.base().to_owned().to_camel_case()) {
+                            let to = graph.get_node(s.name()).unwrap();
+                            graph.add_edge(to, node);
                         }
                     }
                 }

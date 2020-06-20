@@ -33,6 +33,7 @@ pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_
 }
 
 fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Context) -> Result<(), ::failure::Error> {
+    let mut id = 0;
     for content in packet.contents() {
         use flat_ast::PacketContent::*;
         match content {
@@ -52,8 +53,9 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
                 let _complex = flatten_complex(complex, ctx);
             },
             ast::PacketContent::Element(ref element) => {
-                let element = flatten_element(element, ctx, 0);
+                let element = flatten_element(element, ctx, id);
                 ctx.add_content(Element(element));
+                id += 1;
             }
         }
     }
@@ -61,17 +63,14 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
 }
 
 fn flatten_simple(simple: &ast::SimpleType) -> flat_ast::SimpleType {
-    let mut type_ = flat_ast::SimpleType::new(simple.name().clone(), simple.doc().clone());
-    let mut enum_id = 0i64;
-    for content in simple.contents() {
-        match content {
-            ast::SimpleTypeContent::Restriction(ref restriction) => {
-                let restrict = flatten_restriction(restriction, &mut enum_id);
-                type_.add_content(flat_ast::SimpleTypeContent::Restriction(restrict));
-            }
+    match simple.content() {
+        ast::SimpleTypeContent::Restriction(ref restriction) => {
+            let mut id = 0;
+            let restrict = flatten_restriction(restriction, &mut id);
+            let restriction = flat_ast::SimpleTypeContent::Restriction(restrict);
+            flat_ast::SimpleType::new(simple.name().clone(), restriction, simple.doc().clone())
         }
     }
-    type_
 }
 
 fn flatten_restriction(r: &ast::Restriction, enum_id: &mut i64) -> flat_ast::Restriction {

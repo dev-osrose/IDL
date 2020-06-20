@@ -54,7 +54,7 @@ pub struct Element {
 #[derive(Debug)]
 pub struct SimpleType {
     name: String,
-    contents: Vec<SimpleTypeContent>,
+    content: SimpleTypeContent,
     doc: Option<String>
 }
 
@@ -84,8 +84,8 @@ pub struct Enumeration {
 
 impl PacketContent {
     #[inline]
-    pub fn type_from_name(content: &PacketContent) -> Option<String> {
-        match content {
+    pub fn type_from_name(&self) -> Option<String> {
+        match self {
             PacketContent::Simple(s) => Some(s.name().to_owned()),
             PacketContent::Complex(c) => Some(c.name().to_owned()),
             _ => None
@@ -93,8 +93,8 @@ impl PacketContent {
     }
 
     #[inline]
-    pub fn is_type(content: &PacketContent) -> bool {
-        match content {
+    pub fn is_type(&self) -> bool {
+        match self {
             PacketContent::Simple(_) | PacketContent::Complex(_) => true,
             _ => false
         }
@@ -146,10 +146,6 @@ impl ComplexType {
     pub fn content(&self) -> &ComplexTypeContent {
         &self.content
     }
-
-    pub fn content_mut(&mut self) -> &mut ComplexTypeContent {
-        &mut self.content
-    }
 }
 
 impl Sequence {
@@ -163,10 +159,6 @@ impl Sequence {
 
     pub fn elements(&self) -> &[Element] {
         &self.elements
-    }
-
-    pub fn elements_mut(&mut self) -> &mut [Element] {
-        &mut self.elements
     }
 
     pub fn doc(&self) -> &Option<String> {
@@ -228,28 +220,16 @@ impl Element {
     pub fn init(&self) -> &ElementInitValue {
         &self.init
     }
-
-    pub fn set_is_defined(&mut self) {
-        self.is_defined = true;
-    }
-
-    pub fn is_defined(&self) -> bool {
-        self.is_defined
-    }
 }
 
 impl SimpleType {
-    pub fn new(name: String, doc: Option<String>) -> Self {
+    pub fn new(name: String, content: SimpleTypeContent, doc: Option<String>) -> Self {
         use heck::CamelCase;
-        SimpleType{ name: name.to_camel_case(), contents: Vec::new(), doc }
+        SimpleType{ name: name.to_camel_case(), content, doc }
     }
 
-    pub fn add_content(&mut self, content: SimpleTypeContent) {
-        self.contents.push(content);
-    }
-
-    pub fn contents(&self) -> &[SimpleTypeContent] {
-        &self.contents
+    pub fn content(&self) -> &SimpleTypeContent {
+        &self.content
     }
 
     pub fn name(&self) -> &String {

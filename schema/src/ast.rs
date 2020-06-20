@@ -17,7 +17,7 @@ pub enum PacketContent {
 #[derive(Debug, PartialEq)]
 pub struct SimpleType {
     name: String,
-    contents: Vec<SimpleTypeContent>,
+    content: SimpleTypeContent,
     doc: Option<String>
 }
 
@@ -246,20 +246,16 @@ impl Element {
 }
 
 impl SimpleType {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, content: SimpleTypeContent, doc: Option<String>) -> Self {
         SimpleType {
-            name: name,
-            contents: Vec::new(),
-            doc: None
+            name,
+            content,
+            doc
         }
     }
 
-    pub fn add_content(&mut self, content: SimpleTypeContent) {
-        self.contents.push(content);
-    }
-
-    pub fn contents(&self) -> &[SimpleTypeContent] {
-        &self.contents
+    pub fn content(&self) -> &SimpleTypeContent {
+        &self.content
     }
 
     pub fn name(&self) -> &String {
@@ -268,10 +264,6 @@ impl SimpleType {
 
     pub fn doc(&self) -> &Option<String> {
         &self.doc
-    }
-
-    pub fn set_doc(&mut self, doc: String) {
-        self.doc = Some(doc);
     }
 }
 
