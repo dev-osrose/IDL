@@ -63,7 +63,7 @@ impl<'a> Generator<'a> {
             cg!(self, "/* {} */", doc);
         }
         cg!(self, "#[derive(Serialize, Deserialize)]");
-        cg!(self, "pub enum {} {{", name);
+        cg!(self, "pub enum {} {{", name.to_camel_case());
         self.indent();
         for elem in choice.elements() {
             let type_ = if let Some(basic) = Generator::convert_basic_types(elem.type_()) {
@@ -82,7 +82,7 @@ impl<'a> Generator<'a> {
             if let Some(doc) = elem.doc().as_ref() {
                 cg!(self, "/* {} */", doc);
             }
-            cg!(self, "pub {}({}),", elem.name(), type_);
+            cg!(self, "pub {}({}),", elem.name().to_snake_case(), type_);
         }
         self.dedent();
         cg!(self, "}}");
@@ -94,7 +94,7 @@ impl<'a> Generator<'a> {
             cg!(self, "/* {} */", doc);
         }
         cg!(self, "#[derive(Serialize, Deserialize)]");
-        cg!(self, "pub struct {} {{", name);
+        cg!(self, "pub struct {} {{", name.to_camel_case());
         self.indent();
         for elem in s.elements() {
             let type_ = if let Some(basic) = Generator::convert_basic_types(elem.type_()) {
@@ -113,7 +113,7 @@ impl<'a> Generator<'a> {
             if let Some(doc) = elem.doc().as_ref() {
                 cg!(self, "/* {} */", doc);
             }
-            cg!(self, "pub {}: {},", elem.name(), type_);
+            cg!(self, "pub {}: {},", elem.name().to_snake_case(), type_);
         }
         self.dedent();
         cg!(self, "}}");
@@ -125,7 +125,7 @@ impl<'a> Generator<'a> {
             cg!(self, "/* {} */", doc);
         }
         cg!(self, "#[derive(Serialize, Deserialize)]");
-        cg!(self, "pub enum {} {{", name);
+        cg!(self, "pub enum {} {{", name.to_camel_case());
         self.indent();
         for elem in r.contents() {
             match elem {
@@ -187,7 +187,7 @@ impl<'a> Generator<'a> {
         Ok(())
     }
 
-    fn write_definitions(&mut self, packet: &Packet) -> Result<()> {
+    fn write_definitions(&mut self, _packet: &Packet) -> Result<()> {
         Ok(())
     }
 }

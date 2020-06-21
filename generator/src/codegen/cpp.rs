@@ -107,7 +107,7 @@ impl<'a> Generator<'a> {
         if let Some(doc) = choice.doc().as_ref() {
             cg!(self, "/* {} */", doc);
         }
-        cg!(self, "class {} {{", name);
+        cg!(self, "class {} {{", name.to_camel_case());
         self.indent();
         cg!(self, "public:");
         self.indent();
@@ -136,6 +136,7 @@ impl<'a> Generator<'a> {
     }
 
     fn write_choice_source(&mut self, name: &str, choice: &Choice) -> Result<()> {
+        let name = name.to_camel_case();
         for elem in choice.elements() {
             let type_ = Generator::get_type(elem);
             cg!(self, "const {}& {}::get_{}() const noexcept {{", type_, name, elem.name());
@@ -194,7 +195,7 @@ impl<'a> Generator<'a> {
         if let Some(doc) = s.doc().as_ref() {
             cg!(self, "/* {} */", doc);
         }
-        cg!(self, "class {} {{", name);
+        cg!(self, "class {} {{", name.to_camel_case());
         self.indent();
         cg!(self, "public:");
         self.indent();
@@ -222,6 +223,7 @@ impl<'a> Generator<'a> {
     }
 
     fn write_sequence_source(&mut self, name: &str, s: &Sequence) -> Result<()> {
+        let name = name.to_camel_case();
         for elem in s.elements() {
             let type_ = Generator::get_type(elem);
             cg!(self, "const {}& {}::get_{}() const noexcept {{", type_, name, elem.name());
@@ -253,7 +255,7 @@ impl<'a> Generator<'a> {
         if let Some(doc) = r.doc().as_ref() {
             cg!(self, "/* {} */", doc);
         }
-        cg!(self, "enum class {} : uint16_t {{", name);
+        cg!(self, "enum class {} : uint16_t {{", name.to_camel_case());
         self.indent();
         for elem in r.contents() {
             match elem {
@@ -300,7 +302,7 @@ impl<'a> Generator<'a> {
             ComplexTypeContent::Seq(s) => self.write_sequence_header(c.name(), s)?,
             ComplexTypeContent::Empty => {
                 self.select(Select::H);
-                cg!(self, "struct {} {{}};", c.name());
+                cg!(self, "struct {} {{}};", c.name().to_camel_case());
             }
         }
         Ok(())

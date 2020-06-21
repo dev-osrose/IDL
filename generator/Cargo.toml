@@ -1,6 +1,6 @@
 [package]
 name = "packet_generator"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["L3nn0x <dragon83.super@gmail.com>"]
 
 [dependencies]

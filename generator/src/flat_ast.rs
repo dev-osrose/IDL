@@ -217,6 +217,7 @@ impl Element {
         &self.doc
     }
 
+    #[allow(dead_code)]
     pub fn init(&self) -> &ElementInitValue {
         &self.init
     }

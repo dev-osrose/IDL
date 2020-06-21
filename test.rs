@@ -1,4 +1,4 @@
-/* Generated with IDL v0.1.4 */
+/* Generated with IDL v0.2.0 */
 
 use crate::serde_derive::*;
 
@@ -30,7 +30,7 @@ pub struct LoginRequest {
 
 #[derive(Serialize, Deserialize)]
 pub enum LoginResponse {
-    pub sessionID(String),
+    pub session_id(String),
     pub error(LoginError),
 }
 
