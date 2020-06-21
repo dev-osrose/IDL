@@ -197,7 +197,7 @@ impl<'a> Codegen for Generator<'a> {
         let filename = self.generate_file()?;
 
         cg!(self, "/* Generated with IDL v{} */\n", self.version);
-        cg!(self,"use crate::serde::*;");
+        cg!(self,"use crate::serde_derive::*;");
         cg!(self);
         cg!(self, "// --------------- DECLARATIONS -----------------");
         self.write_declarations(packet)?;

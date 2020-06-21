@@ -1,7 +1,8 @@
 /* Generated with IDL v0.1.4 */
 
-use crate::serde::*;
+use crate::serde_derive::*;
 
+// --------------- DECLARATIONS -----------------
 #[derive(Serialize, Deserialize)]
 pub enum Packet {
     pub request(Request),
@@ -10,8 +11,8 @@ pub enum Packet {
 
 #[derive(Serialize, Deserialize)]
 pub enum LoginError {
-    pub USER = 0,
-    pub PASSWORD = 1,
+    pub UNKNOWN_USER = 0,
+    pub WRONG_PASSWORD = 1,
     pub SERVER_DOWN = 2,
 }
 
@@ -44,3 +45,5 @@ pub enum Response {
     pub pong(PongResponse),
     pub login(LoginResponse),
 }
+
+// --------------- DEFINITIONS ------------------
