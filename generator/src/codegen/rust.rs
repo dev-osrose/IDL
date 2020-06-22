@@ -34,6 +34,7 @@ impl<'a> Generator<'a> {
             "float" => Some("f32"),
             "double" => Some("f64"),
             "string" => Some("String"),
+            "bool" => Some("bool"),
             _ => None
         }
     }

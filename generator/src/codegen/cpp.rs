@@ -43,6 +43,8 @@ impl<'a> Generator<'a> {
             "float" => Some("float"),
             "double" => Some("double"),
             "string" => Some("std::string"),
+            "bool" => Some("bool"),
+            
             _ => None
         }
     }
