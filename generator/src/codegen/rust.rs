@@ -39,6 +39,27 @@ impl<'a> Generator<'a> {
         }
     }
 
+    fn get_type(elem: &Element) -> String {
+        let type_ = if let Some(basic) = Generator::convert_basic_types(elem.type_()) {
+            basic
+        } else {
+            elem.type_()
+        };
+        let type_ = if let Some(occurs) = elem.occurs().as_ref() {
+            match occurs {
+                Occurs::Unbounded => format!("Vec<{}>", type_),
+                Occurs::Num(n) => format!("[{}; {}]", type_, n)
+            }
+        } else {
+            type_.to_string()
+        };
+        if elem.is_optional() {
+            format!("Option<{}>", type_)
+        } else {
+            type_
+        }
+    }
+
     fn indent(&mut self) {
         self.writer.as_mut().unwrap().indent();
     }
@@ -67,19 +88,7 @@ impl<'a> Generator<'a> {
         cg!(self, "pub enum {} {{", name.to_camel_case());
         self.indent();
         for elem in choice.elements() {
-            let type_ = if let Some(basic) = Generator::convert_basic_types(elem.type_()) {
-                basic
-            } else {
-                elem.type_()
-            };
-            let type_ = if let Some(occurs) = elem.occurs().as_ref() {
-                match occurs {
-                    Occurs::Unbounded => format!("Vec<{}>", type_),
-                    Occurs::Num(n) => format!("[{}; {}]", type_, n)
-                }
-            } else {
-                type_.to_string()
-            };
+            let type_ = Generator::get_type(elem);
             if let Some(doc) = elem.doc().as_ref() {
                 cg!(self, "/* {} */", doc);
             }
@@ -98,19 +107,7 @@ impl<'a> Generator<'a> {
         cg!(self, "pub struct {} {{", name.to_camel_case());
         self.indent();
         for elem in s.elements() {
-            let type_ = if let Some(basic) = Generator::convert_basic_types(elem.type_()) {
-                basic
-            } else {
-                elem.type_()
-            };
-            let type_ = if let Some(occurs) = elem.occurs().as_ref() {
-                match occurs {
-                    Occurs::Unbounded => format!("Vec<{}>", type_),
-                    Occurs::Num(n) => format!("[{}; {}]", type_, n)
-                }
-            } else {
-                type_.to_string()
-            };
+            let type_ = Generator::get_type(elem);
             if let Some(doc) = elem.doc().as_ref() {
                 cg!(self, "/* {} */", doc);
             }

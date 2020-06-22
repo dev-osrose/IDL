@@ -49,6 +49,7 @@ pub struct Element {
     occurs: Option<Occurs>,
     init: ElementInitValue,
     is_defined: bool,
+    optional: bool
 }
 
 #[derive(Debug)]
@@ -193,8 +194,9 @@ impl Element {
     pub fn new(name: String, type_: String, id: u32
                , init: ElementInitValue
                , occurs: Option<Occurs>
-               , doc: Option<String>) -> Self {
-        Element{ name, init, type_, id, occurs, doc, is_defined: false }
+               , doc: Option<String>
+               , optional: bool) -> Self {
+        Element{ name, init, type_, id, occurs, doc, is_defined: false, optional }
     }
     
     pub fn name(&self) -> &String {
@@ -220,6 +222,10 @@ impl Element {
     #[allow(dead_code)]
     pub fn init(&self) -> &ElementInitValue {
         &self.init
+    }
+
+    pub fn is_optional(&self) -> bool {
+        self.optional
     }
 }
 

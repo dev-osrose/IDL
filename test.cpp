@@ -7,11 +7,11 @@ namespace Packet {
 
 
 
-const std::string& LoginRequest::get_username() const noexcept {
+const std::optional<std::string>& LoginRequest::get_username() const noexcept {
     return username;
 }
 
-LoginRequest& LoginRequest::set_username(const std::string& username) {
+LoginRequest& LoginRequest::set_username(const std::optional<std::string>& username) {
     this->username = username;
     return *this;
 }

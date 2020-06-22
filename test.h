@@ -5,6 +5,7 @@
 #include <array>
 #include <variant>
 #include <string_view>
+#include <optional>
 
 namespace Packet {
 
@@ -20,15 +21,15 @@ struct PongResponse {};
 
 class LoginRequest {
     public:
-        const std::string& get_username() const noexcept;
-        LoginRequest& set_username(const std::string& username);
+        const std::optional<std::string>& get_username() const noexcept;
+        LoginRequest& set_username(const std::optional<std::string>& username);
         
         const std::array<char, 32>& get_password() const noexcept;
         LoginRequest& set_password(const std::array<char, 32>& password);
         
         
     private:
-        std::string username;
+        std::optional<std::string> username;
         std::array<char, 32> password;
 };
 

@@ -20,7 +20,7 @@
 
     <complexType name = "LoginRequest">
         <sequence>
-            <element name = "username" type = "string" />
+            <element name = "username" type = "string" optional = "true" />
             <element name = "password" type = "char" occurs = "32" />
         </sequence>
     </complexType>

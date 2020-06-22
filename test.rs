@@ -24,7 +24,7 @@ pub struct PongResponse;
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginRequest {
-    pub username: String,
+    pub username: Option<String>,
     pub password: [char; 32],
 }
 

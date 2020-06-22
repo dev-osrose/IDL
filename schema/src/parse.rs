@@ -193,6 +193,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
     let name = attrs.get_opt("name");
     let default = attrs.get_opt("default");
     let occurs = attrs.parse_opt("occurs")?;
+    let optional = attrs.parse_opt("optional")?.unwrap_or(false);
     let mut doc = None;
     let init = match default {
         Some(def) => {
@@ -217,7 +218,7 @@ fn element(r: &mut Reader, attrs: Attributes) -> Result<Element> {
         doc = Some(item.clone());
     }
     type_.map(|type_| {
-        let mut elem = Element::new(type_, init, occurs);
+        let mut elem = Element::new(type_, init, occurs, optional);
         if let Some(doc) = doc {
             elem.set_doc(doc);
         }

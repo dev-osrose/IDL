@@ -44,7 +44,7 @@ impl<'a> Generator<'a> {
             "double" => Some("double"),
             "string" => Some("std::string"),
             "bool" => Some("bool"),
-            
+
             _ => None
         }
     }
@@ -95,13 +95,18 @@ impl<'a> Generator<'a> {
         } else {
             elem.type_()
         };
-        if let Some(occurs) = elem.occurs().as_ref() {
+        let type_ = if let Some(occurs) = elem.occurs().as_ref() {
             match occurs {
                 Occurs::Unbounded => format!("std::vector<{}>", type_),
                 Occurs::Num(n) => format!("std::array<{}, {}>", type_, n)
             }
         } else {
             type_.to_string()
+        };
+        if elem.is_optional() {
+            format!("std::optional<{}>", type_)
+        } else {
+            type_
         }
     }
 
@@ -340,6 +345,7 @@ impl<'a> Codegen for Generator<'a> {
         cg!(self, "#include <array>");
         cg!(self, "#include <variant>");
         cg!(self, "#include <string_view>");
+        cg!(self, "#include <optional>");
         cg!(self);
         cg!(self, "namespace Packet {{");
         self.select(Select::CPP);

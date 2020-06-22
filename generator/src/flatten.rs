@@ -149,6 +149,6 @@ fn flatten_element(elem: &ast::Element, _ctx: &mut Context, id: u32) -> flat_ast
         ast::ElementType::Named{ ref name, ref type_ } => (name.clone(), type_.clone()),
     };
     let element = flat_ast::Element::new(name, type_, id, init,
-        elem.occurs().clone(), elem.doc().clone());
+        elem.occurs().clone(), elem.doc().clone(), elem.is_optional());
     element
 }

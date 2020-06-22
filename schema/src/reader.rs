@@ -232,7 +232,35 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None, false);
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_optional_false() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" optional = "false" />
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None, false);
+        assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
+    }
+
+    #[test]
+    fn packet_one_element_optional_true() {
+        let packet = Reader::load_packet(create_cursor(r#"
+        <packet>
+            <element name = "test" type = "u8" optional = "true" />
+        </packet>
+        "#));
+        assert_eq!(true, packet.is_ok());
+        let packet = packet.unwrap();
+        assert_eq!(1, packet.contents().len());
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None, true);
         assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
     }
 
@@ -246,7 +274,7 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Default("42".to_string()), None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Default("42".to_string()), None, false);
         assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
     }
 
@@ -260,7 +288,7 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::None, None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::None, None, false);
         assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
     }
 
@@ -274,7 +302,7 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Num(42)));
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Num(42)), false);
         assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
     }
 
@@ -288,7 +316,7 @@ mod tests {
         assert_eq!(true, packet.is_ok());
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Unbounded));
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, Some(Occurs::Unbounded), false);
         assert_eq!(PacketContent::Element(elem), *packet.contents().last().unwrap());
     }
 
@@ -334,7 +362,7 @@ mod tests {
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("ZERO".to_string(), None, None)));
         r.add_content(RestrictionContent::Enumeration(Enumeration::new("TWO".to_string(), Some(2), None)));
         let s = SimpleType::new("Test".to_string(), SimpleTypeContent::Restriction(r), None);
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "Test".to_string()}, ElementInitValue::Create, None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "Test".to_string()}, ElementInitValue::Create, None, false);
         assert_eq!(PacketContent::SimpleType(s), packet.contents()[0]);
         assert_eq!(PacketContent::Element(elem), packet.contents()[1]);
     }
@@ -387,7 +415,7 @@ mod tests {
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
         let mut s = Sequence::new(None);
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None, false);
         s.add_content(SequenceContent::Element(elem));
         let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Seq(s));
         assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());
@@ -426,7 +454,7 @@ mod tests {
         let packet = packet.unwrap();
         assert_eq!(1, packet.contents().len());
         let mut c = Choice::new(None);
-        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None);
+        let elem = Element::new(ElementType::Named{name: "test".to_string(), type_: "u8".to_string()}, ElementInitValue::Create, None ,false);
         c.add_content(SequenceContent::Element(elem));
         let s = ComplexType::new("Test".to_string(), ComplexTypeContent::Choice(c));
         assert_eq!(PacketContent::ComplexType(s), *packet.contents().last().unwrap());

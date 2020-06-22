@@ -101,6 +101,7 @@ pub struct Element {
     init: ElementInitValue,
     doc: Option<String>,
     occurs: Option<Occurs>,
+    optional: bool
 }
 
 #[derive(Debug, PartialEq)]
@@ -215,12 +216,13 @@ impl Choice {
 
 impl Element {
     pub fn new(type_: ElementType, init: ElementInitValue,
-                occurs: Option<Occurs>) -> Self {
+                occurs: Option<Occurs>, optional: bool) -> Self {
         Element {
             type_,
             occurs,
             doc: None,
             init,
+            optional
         }
     }
 
@@ -242,6 +244,10 @@ impl Element {
 
     pub fn init(&self) -> &ElementInitValue {
         &self.init
+    }
+
+    pub fn is_optional(&self) -> bool {
+        self.optional
     }
 }
 
