@@ -118,6 +118,15 @@ impl<'a> Generator<'a> {
         self.indent();
         cg!(self, "public:");
         self.indent();
+        cg!(self, "enum class Selection : size_t {{");
+        self.indent();
+        cg!(self, "UNSELECTED = 0,");
+        for (idx, elem) in choice.elements().iter().enumerate() {
+            cg!(self, "{} = {},", elem.name().to_shouty_snake_case(), idx + 1);
+        }
+        self.dedent();
+        cg!(self, "}};");
+        cg!(self);
         for elem in choice.elements() {
             let type_ = Generator::get_type(elem);
             if let Some(doc) = elem.doc().as_ref() {
@@ -128,7 +137,9 @@ impl<'a> Generator<'a> {
             cg!(self, "{}& make_{}();", type_, elem.name());
             cg!(self);
         }
-        cg!(self, "const std::string_view selection() const noexcept;");
+        cg!(self, "Selection selection() const noexcept;");
+        cg!(self);
+        cg!(self, "const auto& visit() const noexcept {{ return __data; }}");
         cg!(self);
         self.dedent();
         cg!(self, "private:");
@@ -145,16 +156,17 @@ impl<'a> Generator<'a> {
     fn write_choice_source(&mut self, name: &str, choice: &Choice) -> Result<()> {
         let name = name.to_camel_case();
         for elem in choice.elements() {
+            let selection = format!("Selection::{}", elem.name().to_shouty_snake_case());
             let type_ = Generator::get_type(elem);
             cg!(self, "const {}& {}::get_{}() const noexcept {{", type_, name, elem.name());
             self.indent();
-            cg!(self, "return std::get<{}>(__data);", type_);
+            cg!(self, "return std::get<static_cast<size_t>({})>(__data);", selection);
             self.dedent();
             cg!(self, "}}");
             cg!(self);
             cg!(self, "{0}& {0}::set_{1}(const {2}& {1}) {{", name, elem.name(), type_);
             self.indent();
-            cg!(self, "__data = {};", elem.name());
+            cg!(self, "__data.emplace<static_cast<size_t>({})>({});", selection, elem.name());
             cg!(self, "return *this;");
             self.dedent();
             cg!(self, "}}");
@@ -163,28 +175,15 @@ impl<'a> Generator<'a> {
             self.indent();
             cg!(self, "{} tmp;", type_);
             cg!(self, "set_{}(tmp);", elem.name());
-            cg!(self, "return std::get<{}>(__data);", type_);
+            cg!(self, "return std::get<static_cast<size_t>({})>(__data);", selection);
             self.dedent();
             cg!(self, "}}");
             cg!(self);
         }
-        cg!(self, "const std::string_view {}::selection() const noexcept {{", name);
+        cg!(self, "{0}::Selection {0}::selection() const noexcept {{", name);
         self.indent();
         cg!(self, "const size_t index = __data.index();");
-        cg!(self, "switch (index) {{");
-        self.indent();
-        for (idx, elem) in choice.elements().iter().enumerate() {
-            cg!(self, "case {}:", idx + 1); // because we have the monostate
-            self.indent();
-            cg!(self, "return \"{}\";", elem.name());
-            self.dedent();
-        }
-        cg!(self, "default:");
-        self.indent();
-        cg!(self, "return \"unselected\";");
-        self.dedent();
-        self.dedent();
-        cg!(self, "}}");
+        cg!(self, "return static_cast<Selection>(index);");
         self.dedent();
         cg!(self, "}}");
         cg!(self);

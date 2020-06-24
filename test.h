@@ -35,6 +35,12 @@ class LoginRequest {
 
 class LoginResponse {
     public:
+        enum class Selection : size_t {
+            UNSELECTED = 0,
+            SESSION_ID = 1,
+            ERROR = 2,
+        };
+        
         const std::string& get_sessionID() const noexcept;
         LoginResponse& set_sessionID(const std::string& sessionID);
         std::string& make_sessionID();
@@ -43,7 +49,9 @@ class LoginResponse {
         LoginResponse& set_error(const LoginError& error);
         LoginError& make_error();
         
-        const std::string_view selection() const noexcept;
+        Selection selection() const noexcept;
+        
+        const auto& visit() const noexcept { return __data; }
         
     private:
         std::variant<std::monostate, std::string, LoginError> __data;
@@ -51,6 +59,12 @@ class LoginResponse {
 
 class Request {
     public:
+        enum class Selection : size_t {
+            UNSELECTED = 0,
+            PING = 1,
+            LOGIN = 2,
+        };
+        
         const PingRequest& get_ping() const noexcept;
         Request& set_ping(const PingRequest& ping);
         PingRequest& make_ping();
@@ -59,7 +73,9 @@ class Request {
         Request& set_login(const LoginRequest& login);
         LoginRequest& make_login();
         
-        const std::string_view selection() const noexcept;
+        Selection selection() const noexcept;
+        
+        const auto& visit() const noexcept { return __data; }
         
     private:
         std::variant<std::monostate, PingRequest, LoginRequest> __data;
@@ -67,6 +83,12 @@ class Request {
 
 class Response {
     public:
+        enum class Selection : size_t {
+            UNSELECTED = 0,
+            PONG = 1,
+            LOGIN = 2,
+        };
+        
         const PongResponse& get_pong() const noexcept;
         Response& set_pong(const PongResponse& pong);
         PongResponse& make_pong();
@@ -75,7 +97,9 @@ class Response {
         Response& set_login(const LoginResponse& login);
         LoginResponse& make_login();
         
-        const std::string_view selection() const noexcept;
+        Selection selection() const noexcept;
+        
+        const auto& visit() const noexcept { return __data; }
         
     private:
         std::variant<std::monostate, PongResponse, LoginResponse> __data;
@@ -83,6 +107,12 @@ class Response {
 
 class Packet {
     public:
+        enum class Selection : size_t {
+            UNSELECTED = 0,
+            REQUEST = 1,
+            RESPONSE = 2,
+        };
+        
         const Request& get_request() const noexcept;
         Packet& set_request(const Request& request);
         Request& make_request();
@@ -91,7 +121,9 @@ class Packet {
         Packet& set_response(const Response& response);
         Response& make_response();
         
-        const std::string_view selection() const noexcept;
+        Selection selection() const noexcept;
+        
+        const auto& visit() const noexcept { return __data; }
         
     private:
         std::variant<std::monostate, Request, Response> __data;
