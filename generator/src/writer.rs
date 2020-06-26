@@ -20,6 +20,10 @@ impl<T: Write> Writer<T> {
         Ok(self)
     }
 
+    pub fn get_indent(&self) -> i32 {
+        self.indent
+    }
+
     pub fn indent(&mut self) -> &mut Self {
         self.indent += 1;
         self

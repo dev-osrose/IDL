@@ -120,7 +120,9 @@ class LoginResponse {
             return result;
         }
     private:
-        std::variant<std::monostate, std::string, LoginError> __data;
+        std::variant<std::monostate,
+                        std::string,
+                        LoginError> __data;
 };
 
 class Request {
@@ -150,7 +152,9 @@ class Request {
             return result;
         }
     private:
-        std::variant<std::monostate, PingRequest, LoginRequest> __data;
+        std::variant<std::monostate,
+                        PingRequest,
+                        LoginRequest> __data;
 };
 
 class Response {
@@ -180,7 +184,9 @@ class Response {
             return result;
         }
     private:
-        std::variant<std::monostate, PongResponse, LoginResponse> __data;
+        std::variant<std::monostate,
+                        PongResponse,
+                        LoginResponse> __data;
 };
 
 class Packet {
@@ -210,7 +216,9 @@ class Packet {
             return result;
         }
     private:
-        std::variant<std::monostate, Request, Response> __data;
+        std::variant<std::monostate,
+                        Request,
+                        Response> __data;
 };
 
 template <typename T>

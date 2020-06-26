@@ -153,7 +153,8 @@ impl<'a> Generator<'a> {
         self.dedent();
         cg!(self, "private:");
         self.indent();
-        let tt: Vec<_> = choice.elements().iter().map(|e| ", ".to_string() + &Generator::get_type(e)).collect();
+        let pad = ",\n".to_string() + &"    ".repeat(self.hwriter.as_ref().unwrap().get_indent() as usize + 4);
+        let tt: Vec<_> = choice.elements().iter().map(|e| pad.clone() + &Generator::get_type(e)).collect();
         let types = String::from_utf8(tt.iter().map(|e| e.bytes()).flatten().collect()).unwrap();
         cg!(self, "std::variant<std::monostate{}> __data;", types);
         self.dedent();
