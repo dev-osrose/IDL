@@ -139,8 +139,16 @@ impl<'a> Generator<'a> {
         }
         cg!(self, "Selection selection() const noexcept;");
         cg!(self);
-        cg!(self, "const auto& visit() const noexcept {{ return __data; }}");
+        cg!(self, "const auto& visit_inner() const noexcept {{ return __data; }}");
         cg!(self);
+        cg!(self, "template <typename T>");
+        cg!(self, "bool visit(VisitorBase<T>& v) {{");
+        self.indent();
+        cg!(self, "bool result = true;");
+        cg!(self, "result &= v(__data);");
+        cg!(self, "return result;");
+        self.dedent();
+        cg!(self, "}}");
         self.dedent();
         cg!(self, "private:");
         self.indent();
@@ -212,6 +220,16 @@ impl<'a> Generator<'a> {
             cg!(self);
         }
         cg!(self);
+        cg!(self, "template <typename T>");
+        cg!(self, "bool visit(VisitorBase<T>& v) {{");
+        self.indent();
+        cg!(self, "bool result = true;");
+        for elem in s.elements() {
+            cg!(self, "result &= v({});", elem.name());
+        }
+        cg!(self, "return result;");
+        self.dedent();
+        cg!(self, "}}");
         self.dedent();
         cg!(self, "private:");
         self.indent();
@@ -347,6 +365,67 @@ impl<'a> Codegen for Generator<'a> {
         cg!(self, "#include <optional>");
         cg!(self);
         cg!(self, "namespace Packet {{");
+        cg!(self);
+        for type_ in packet.contents().iter().filter(|e| e.is_type()) {
+            match type_ {
+                PacketContent::Complex(c) => { cg!(self, "class {};", c.name()); },
+                PacketContent::Simple(s) => { cg!(self, "enum class {} : uint16_t;", s.name()); },
+                _ => {}
+            }
+        }
+        cg!(self);
+        cg!(self, "template <typename Derived>");
+        cg!(self, "struct VisitorBase {{");
+        self.indent();
+        cg!(self, "virtual ~VisitorBase() = default;");
+        cg!(self, "virtual bool visit_array(size_t length) = 0;");
+        cg!(self, "virtual bool operator()(uint8_t&) = 0;");
+        cg!(self, "virtual bool operator()(int8_t&) = 0;");
+        cg!(self, "virtual bool operator()(uint16_t&) = 0;");
+        cg!(self, "virtual bool operator()(int16_t&) = 0;");
+        cg!(self, "virtual bool operator()(uint32_t&) = 0;");
+        cg!(self, "virtual bool operator()(int32_t&) = 0;");
+        cg!(self, "virtual bool operator()(uint64_t&) = 0;");
+        cg!(self, "virtual bool operator()(int64_t&) = 0;");
+        cg!(self, "virtual bool operator()(std::string&) = 0;");
+        cg!(self, "template <typename T>");
+        cg!(self, "bool operator(std::optional<T>& data) {{");
+        self.indent();
+        cg!(self, "return dynamic_cast<Derived&>(*this)(data);");
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self, "template <typename T, size_t N>");
+        cg!(self, "bool operator(std::array<T, N>& data) {{");
+        self.indent();
+        cg!(self, "return dynamic_cast<Derived&>(*this)(data);");
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self, "template <typename T>");
+        cg!(self, "bool operator()(std::vector<T>& data) {{");
+        self.indent();
+        cg!(self, "return dynamic_cast<Derived&>(*this)(data);");
+        self.dedent();
+        cg!(self, "}}");
+        cg!(self, "template <typename... Args>");
+        cg!(self, "bool operator()(std::variant<Args...>& data) {{");
+        self.indent();
+        cg!(self, "return dynamic_cast<Derived&>(*this)(data);");
+        self.dedent();
+        cg!(self, "}}");
+        for type_ in packet.contents().iter().filter(|e| e.is_type()) {
+            match type_ {
+                PacketContent::Complex(c) => {
+                    cg!(self, "bool operator()({}&);", c.name());
+                },
+                PacketContent::Simple(s) => {
+                    cg!(self, "bool operator()({}&);", s.name());
+                },
+                _ => {}
+            }
+        }
+        self.dedent();
+        cg!(self, "}};");
+        cg!(self);
         self.select(Select::CPP);
         cg!(self, "/* Generated with IDL v{} */\n", self.version);
         cg!(self,"#include \"{}\"", vec[0]);
@@ -377,6 +456,28 @@ impl<'a> Codegen for Generator<'a> {
         }
         self.write_choice("Packet", &choice)?;
         self.select(Select::H);
+        cg!(self);
+        for type_ in packet.contents().iter().filter(|e| e.is_type()) {
+            match type_ {
+                PacketContent::Complex(c) => {
+                    cg!(self, "template <typename T>");
+                    cg!(self, "bool VisitorBase<T>::operator()({}& data) {{", c.name());
+                    self.indent();
+                    cg!(self, "return data.visit(*this);");
+                    self.dedent();
+                    cg!(self, "}}");
+                },
+                PacketContent::Simple(s) => {
+                    cg!(self, "template <typename T>");
+                    cg!(self, "bool VisitorBase<T>::operator()({}& data) {{", s.name());
+                    self.indent();
+                    cg!(self, "return (*this)(static_cast<uint16_t&>(data));");
+                    self.dedent();
+                    cg!(self, "}}");
+                },
+                _ => {}
+            }
+        }
         cg!(self, "}} // namespace Packet");
         self.select(Select::CPP);
         cg!(self, "}} // namespace Packet");

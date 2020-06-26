@@ -9,6 +9,45 @@
 
 namespace Packet {
 
+enum class LoginError : uint16_t;
+class PingRequest;
+class PongResponse;
+class LoginRequest;
+class LoginResponse;
+class Request;
+class Response;
+
+template <typename Derived>
+struct VisitorBase {
+    virtual ~VisitorBase() = default;
+    virtual bool visit_array(size_t length) = 0;
+    virtual bool operator()(uint8_t&) = 0;
+    virtual bool operator()(int8_t&) = 0;
+    virtual bool operator()(uint16_t&) = 0;
+    virtual bool operator()(int16_t&) = 0;
+    virtual bool operator()(uint32_t&) = 0;
+    virtual bool operator()(int32_t&) = 0;
+    virtual bool operator()(uint64_t&) = 0;
+    virtual bool operator()(int64_t&) = 0;
+    virtual bool operator()(std::string&) = 0;
+    template <typename T>
+    bool operator()(std::vector<T>& data) {
+        return dynamic_cast<Derived&>(*this)(data);
+    }
+    template <typename... Args>
+    bool operator()(std::variant<Args...>& data) {
+        return dynamic_cast<Derived&>(*this)(data);
+    }
+    bool operator()(LoginError&);
+    bool operator()(PingRequest&);
+    bool operator()(PongResponse&);
+    bool operator()(LoginRequest&);
+    bool operator()(LoginResponse&);
+    bool operator()(Request&);
+    bool operator()(Response&);
+};
+
+
 enum class LoginError : uint16_t {
     UNKNOWN_USER = 0,
     WRONG_PASSWORD = 1,
@@ -28,6 +67,13 @@ class LoginRequest {
         LoginRequest& set_password(const std::array<char, 32>& password);
         
         
+        template <typename T>
+        bool visit(VisitorBase<T>& v) {
+            bool result = true;
+            result &= v(username);
+            result &= v(password);
+            return result;
+        }
     private:
         std::optional<std::string> username;
         std::array<char, 32> password;
@@ -51,8 +97,14 @@ class LoginResponse {
         
         Selection selection() const noexcept;
         
-        const auto& visit() const noexcept { return __data; }
+        const auto& visit_inner() const noexcept { return __data; }
         
+        template <typename T>
+        bool visit(VisitorBase<T>& v) {
+            bool result = true;
+            result &= v(__data);
+            return result;
+        }
     private:
         std::variant<std::monostate, std::string, LoginError> __data;
 };
@@ -75,8 +127,14 @@ class Request {
         
         Selection selection() const noexcept;
         
-        const auto& visit() const noexcept { return __data; }
+        const auto& visit_inner() const noexcept { return __data; }
         
+        template <typename T>
+        bool visit(VisitorBase<T>& v) {
+            bool result = true;
+            result &= v(__data);
+            return result;
+        }
     private:
         std::variant<std::monostate, PingRequest, LoginRequest> __data;
 };
@@ -99,8 +157,14 @@ class Response {
         
         Selection selection() const noexcept;
         
-        const auto& visit() const noexcept { return __data; }
+        const auto& visit_inner() const noexcept { return __data; }
         
+        template <typename T>
+        bool visit(VisitorBase<T>& v) {
+            bool result = true;
+            result &= v(__data);
+            return result;
+        }
     private:
         std::variant<std::monostate, PongResponse, LoginResponse> __data;
 };
@@ -123,9 +187,44 @@ class Packet {
         
         Selection selection() const noexcept;
         
-        const auto& visit() const noexcept { return __data; }
+        const auto& visit_inner() const noexcept { return __data; }
         
+        template <typename T>
+        bool visit(VisitorBase<T>& v) {
+            bool result = true;
+            result &= v(__data);
+            return result;
+        }
     private:
         std::variant<std::monostate, Request, Response> __data;
 };
+
+template <typename T>
+bool VisitorBase<T>::operator()(LoginError& data) {
+    return (*this)(static_cast<uint16_t&>(data));
+}
+template <typename T>
+bool VisitorBase<T>::operator()(PingRequest& data) {
+    return data.visit(*this);
+}
+template <typename T>
+bool VisitorBase<T>::operator()(PongResponse& data) {
+    return data.visit(*this);
+}
+template <typename T>
+bool VisitorBase<T>::operator()(LoginRequest& data) {
+    return data.visit(*this);
+}
+template <typename T>
+bool VisitorBase<T>::operator()(LoginResponse& data) {
+    return data.visit(*this);
+}
+template <typename T>
+bool VisitorBase<T>::operator()(Request& data) {
+    return data.visit(*this);
+}
+template <typename T>
+bool VisitorBase<T>::operator()(Response& data) {
+    return data.visit(*this);
+}
 } // namespace Packet
