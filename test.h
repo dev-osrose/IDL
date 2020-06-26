@@ -20,7 +20,12 @@ class Response;
 template <typename Derived>
 struct VisitorBase {
     virtual ~VisitorBase() = default;
-    virtual bool visit_array(size_t length) = 0;
+    virtual bool visit_sequence(size_t length) = 0;
+    virtual bool visit_enum(uint16_t& data) = 0;
+    bool visit_null() {
+        std::monostate monostate;
+        return (*this)(monostate);
+    }
     virtual bool operator()(uint8_t&) = 0;
     virtual bool operator()(int8_t&) = 0;
     virtual bool operator()(uint16_t&) = 0;
@@ -30,13 +35,22 @@ struct VisitorBase {
     virtual bool operator()(uint64_t&) = 0;
     virtual bool operator()(int64_t&) = 0;
     virtual bool operator()(std::string&) = 0;
+    virtual bool operator()(std::monostate&) = 0;
+    template <typename T>
+    bool operator(std::optional<T>& data) {
+        return dynamic_cast<Derived&>(*this)(data);
+    }
+    template <typename T, size_t N>
+    bool operator(std::array<T, N>& data) {
+        return dynamic_cast<Derived&>(*this)(data);
+    }
     template <typename T>
     bool operator()(std::vector<T>& data) {
         return dynamic_cast<Derived&>(*this)(data);
     }
     template <typename... Args>
-    bool operator()(std::variant<Args...>& data) {
-        return dynamic_cast<Derived&>(*this)(data);
+    bool visit_choice(std::variant<Args...>& data) {
+        return dynamic_cast<Derived&>(*this).visit_choice(data);
     }
     bool operator()(LoginError&);
     bool operator()(PingRequest&);
@@ -201,19 +215,20 @@ class Packet {
 
 template <typename T>
 bool VisitorBase<T>::operator()(LoginError& data) {
-    return (*this)(static_cast<uint16_t&>(data));
+    return this->visit_enum(static_cast<uint16_t&>(data)));
 }
 template <typename T>
 bool VisitorBase<T>::operator()(PingRequest& data) {
-    return data.visit(*this);
+    return visit_sequence(0);
 }
 template <typename T>
 bool VisitorBase<T>::operator()(PongResponse& data) {
-    return data.visit(*this);
+    return visit_sequence(0);
 }
 template <typename T>
 bool VisitorBase<T>::operator()(LoginRequest& data) {
-    return data.visit(*this);
+    bool result = visit_sequence(2);
+    return result && data.visit(*this);
 }
 template <typename T>
 bool VisitorBase<T>::operator()(LoginResponse& data) {

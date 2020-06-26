@@ -378,7 +378,14 @@ impl<'a> Codegen for Generator<'a> {
         cg!(self, "struct VisitorBase {{");
         self.indent();
         cg!(self, "virtual ~VisitorBase() = default;");
-        cg!(self, "virtual bool visit_array(size_t length) = 0;");
+        cg!(self, "virtual bool visit_sequence(size_t length) = 0;");
+        cg!(self, "virtual bool visit_enum(uint16_t& data) = 0;");
+        cg!(self, "bool visit_null() {{");
+        self.indent();
+        cg!(self, "std::monostate monostate;");
+        cg!(self, "return (*this)(monostate);");
+        self.dedent();
+        cg!(self, "}}");
         cg!(self, "virtual bool operator()(uint8_t&) = 0;");
         cg!(self, "virtual bool operator()(int8_t&) = 0;");
         cg!(self, "virtual bool operator()(uint16_t&) = 0;");
@@ -388,6 +395,7 @@ impl<'a> Codegen for Generator<'a> {
         cg!(self, "virtual bool operator()(uint64_t&) = 0;");
         cg!(self, "virtual bool operator()(int64_t&) = 0;");
         cg!(self, "virtual bool operator()(std::string&) = 0;");
+        cg!(self, "virtual bool operator()(std::monostate&) = 0;");
         cg!(self, "template <typename T>");
         cg!(self, "bool operator(std::optional<T>& data) {{");
         self.indent();
@@ -407,9 +415,9 @@ impl<'a> Codegen for Generator<'a> {
         self.dedent();
         cg!(self, "}}");
         cg!(self, "template <typename... Args>");
-        cg!(self, "bool operator()(std::variant<Args...>& data) {{");
+        cg!(self, "bool visit_choice(std::variant<Args...>& data) {{");
         self.indent();
-        cg!(self, "return dynamic_cast<Derived&>(*this)(data);");
+        cg!(self, "return dynamic_cast<Derived&>(*this).visit_choice(data);");
         self.dedent();
         cg!(self, "}}");
         for type_ in packet.contents().iter().filter(|e| e.is_type()) {
@@ -463,7 +471,18 @@ impl<'a> Codegen for Generator<'a> {
                     cg!(self, "template <typename T>");
                     cg!(self, "bool VisitorBase<T>::operator()({}& data) {{", c.name());
                     self.indent();
-                    cg!(self, "return data.visit(*this);");
+                    match c.content() {
+                        ComplexTypeContent::Choice(_) => {
+                            cg!(self, "return data.visit(*this);");
+                        },
+                        ComplexTypeContent::Seq(s) => {
+                            cg!(self, "bool result = visit_sequence({});", s.elements().len());
+                            cg!(self, "return result && data.visit(*this);");
+                        },
+                        ComplexTypeContent::Empty => {
+                            cg!(self, "return visit_sequence(0);");
+                        }
+                    }
                     self.dedent();
                     cg!(self, "}}");
                 },
@@ -471,7 +490,7 @@ impl<'a> Codegen for Generator<'a> {
                     cg!(self, "template <typename T>");
                     cg!(self, "bool VisitorBase<T>::operator()({}& data) {{", s.name());
                     self.indent();
-                    cg!(self, "return (*this)(static_cast<uint16_t&>(data));");
+                    cg!(self, "return this->visit_enum(static_cast<uint16_t&>(data)));");
                     self.dedent();
                     cg!(self, "}}");
                 },
