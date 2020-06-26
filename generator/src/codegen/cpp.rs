@@ -140,16 +140,8 @@ impl<'a> Generator<'a> {
         }
         cg!(self, "Selection selection() const noexcept;");
         cg!(self);
-        cg!(self, "const auto& visit_inner() const noexcept {{ return __data; }}");
+        cg!(self, "const auto& visit() const noexcept {{ return __data; }}");
         cg!(self);
-        cg!(self, "template <typename T>");
-        cg!(self, "bool visit(VisitorBase<T>& v) {{");
-        self.indent();
-        cg!(self, "bool result = true;");
-        cg!(self, "result &= v(__data);");
-        cg!(self, "return result;");
-        self.dedent();
-        cg!(self, "}}");
         self.dedent();
         cg!(self, "private:");
         self.indent();
@@ -396,6 +388,8 @@ impl<'a> Codegen for Generator<'a> {
         cg!(self, "virtual bool operator()(int32_t&) = 0;");
         cg!(self, "virtual bool operator()(uint64_t&) = 0;");
         cg!(self, "virtual bool operator()(int64_t&) = 0;");
+        cg!(self, "virtual bool operator()(float&) = 0;");
+        cg!(self, "virtual bool operator()(double&) = 0;");
         cg!(self, "virtual bool operator()(std::string&) = 0;");
         cg!(self, "virtual bool operator()(std::monostate&) = 0;");
         cg!(self, "template <typename T>");
@@ -475,7 +469,7 @@ impl<'a> Codegen for Generator<'a> {
                     self.indent();
                     match c.content() {
                         ComplexTypeContent::Choice(_) => {
-                            cg!(self, "return data.visit(*this);");
+                            cg!(self, "return visit_choice(data.visit());");
                         },
                         ComplexTypeContent::Seq(s) => {
                             cg!(self, "bool result = visit_sequence({});", s.elements().len());

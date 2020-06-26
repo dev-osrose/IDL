@@ -111,14 +111,8 @@ class LoginResponse {
         
         Selection selection() const noexcept;
         
-        const auto& visit_inner() const noexcept { return __data; }
+        const auto& visit() const noexcept { return __data; }
         
-        template <typename T>
-        bool visit(VisitorBase<T>& v) {
-            bool result = true;
-            result &= v(__data);
-            return result;
-        }
     private:
         std::variant<std::monostate,
                         std::string,
@@ -143,14 +137,8 @@ class Request {
         
         Selection selection() const noexcept;
         
-        const auto& visit_inner() const noexcept { return __data; }
+        const auto& visit() const noexcept { return __data; }
         
-        template <typename T>
-        bool visit(VisitorBase<T>& v) {
-            bool result = true;
-            result &= v(__data);
-            return result;
-        }
     private:
         std::variant<std::monostate,
                         PingRequest,
@@ -175,14 +163,8 @@ class Response {
         
         Selection selection() const noexcept;
         
-        const auto& visit_inner() const noexcept { return __data; }
+        const auto& visit() const noexcept { return __data; }
         
-        template <typename T>
-        bool visit(VisitorBase<T>& v) {
-            bool result = true;
-            result &= v(__data);
-            return result;
-        }
     private:
         std::variant<std::monostate,
                         PongResponse,
@@ -207,14 +189,8 @@ class Packet {
         
         Selection selection() const noexcept;
         
-        const auto& visit_inner() const noexcept { return __data; }
+        const auto& visit() const noexcept { return __data; }
         
-        template <typename T>
-        bool visit(VisitorBase<T>& v) {
-            bool result = true;
-            result &= v(__data);
-            return result;
-        }
     private:
         std::variant<std::monostate,
                         Request,
@@ -240,14 +216,14 @@ bool VisitorBase<T>::operator()(LoginRequest& data) {
 }
 template <typename T>
 bool VisitorBase<T>::operator()(LoginResponse& data) {
-    return data.visit(*this);
+    return visit_choice(data.visit());
 }
 template <typename T>
 bool VisitorBase<T>::operator()(Request& data) {
-    return data.visit(*this);
+    return visit_choice(data.visit());
 }
 template <typename T>
 bool VisitorBase<T>::operator()(Response& data) {
-    return data.visit(*this);
+    return visit_choice(data.visit());
 }
 } // namespace Packet
