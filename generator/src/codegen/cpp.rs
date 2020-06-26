@@ -76,14 +76,15 @@ impl<'a> Generator<'a> {
     }
 
     fn generate_header(&mut self) -> Result<String> {
-        let filename = self.output_dir.to_str().unwrap().to_owned() + &format!("{}.h", self.stem);
+        let filename = format!("{}{}.h", self.output_dir.to_str().unwrap(), self.stem);
         let file = std::fs::File::create(filename.clone())?;
         self.hwriter = Some(::writer::Writer::new(file));
         Ok(filename)
     }
 
     fn generate_source(&mut self) -> Result<String> {
-        let filename = self.output_dir.to_str().unwrap().to_owned() + &format!("{}.cpp", self.stem);
+        let filename = format!("{}{}.cpp", self.output_dir.to_str().unwrap()
+        , self.stem);
         let file = std::fs::File::create(filename.clone())?;
         self.cwriter = Some(::writer::Writer::new(file));
         Ok(filename)
