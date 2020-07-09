@@ -11,9 +11,9 @@ pub struct Generator<'a> {
 }
 
 impl<'a> Generator<'a> {
-    pub fn new(output_dir: &'a std::path::Path, stem: &'a str, version: &'a str) -> Self {
+    pub fn new(houtput_dir: &'a std::path::Path, _: &'a std::path::Path, stem: &'a str, version: &'a str) -> Self {
         Self {
-            output_dir,
+            output_dir: houtput_dir,
             writer: None,
             version,
             stem

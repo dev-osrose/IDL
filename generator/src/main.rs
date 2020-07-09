@@ -31,6 +31,18 @@ fn main() -> Result<(), failure::Error> {
                 .long("output")
                 .value_name("FOLDER")
                 .takes_value(true))
+        .arg(Arg::with_name("header_output")
+                .help("uses selected output directory for generated headers")
+                .short("h")
+                .long("houtput")
+                .value_name("FOLDER")
+                .takes_value(true))
+        .arg(Arg::with_name("source_output")
+                .help("uses selected output directory for generated sources")
+                .short("c")
+                .long("coutput")
+                .value_name("FOLDER")
+                .takes_value(true))
         .arg(Arg::with_name("generator")
                 .help("Specify which language the schema should be generated for")
                 .short("g")
@@ -53,7 +65,19 @@ fn main() -> Result<(), failure::Error> {
     simple_logger::init_with_level(verbose).unwrap();
 
 
-    let output_dir = std::path::Path::new(matches.value_of("output").unwrap_or("./"));
+    let (houtput_dir, coutput_dir) = if let Some(output) = matches.value_of("output") {
+        (std::path::Path::new(output), std::path::Path::new(output))
+    } else if let Some(houtput) = matches.value_of("houtput") {
+        if let Some(coutput) = matches.value_of("coutput") {
+            (std::path::Path::new(houtput), std::path::Path::new(coutput))
+        } else {
+            error!("No coutput with htoutput, using the same directory");
+            (std::path::Path::new(houtput), std::path::Path::new(houtput))
+        }
+    } else {
+        error!("No output path selected! Using ./");
+        (std::path::Path::new("./"), std::path::Path::new("./"))
+    };
 
     let filename = std::path::Path::new(matches.value_of("INPUT").unwrap());
     debug!("input filename {:?}", filename);
@@ -66,8 +90,8 @@ fn main() -> Result<(), failure::Error> {
     debug!("packet {:#?}", packet);
     let stem = filename.file_stem().unwrap().to_str().unwrap();
     let mut generator: Box<dyn codegen::Codegen> = match matches.value_of("generator").unwrap() {
-        "cpp" => Box::new(codegen::cpp::Generator::new(output_dir, stem, VERSION)),
-        "rust" => Box::new(codegen::rust::Generator::new(output_dir, stem, VERSION)),
+        "cpp" => Box::new(codegen::cpp::Generator::new(houtput_dir, coutput_dir, stem, VERSION)),
+        "rust" => Box::new(codegen::rust::Generator::new(houtput_dir, coutput_dir, stem, VERSION)),
         _ => unreachable!()
     };
     for file in generator.generate(&packet)? {

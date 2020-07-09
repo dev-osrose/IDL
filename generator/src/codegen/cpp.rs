@@ -4,7 +4,8 @@ use std::io::Result;
 use ::heck::*;
 
 pub struct Generator<'a> {
-    output_dir: &'a std::path::Path,
+    houtput_dir: &'a std::path::Path,
+    coutput_dir: &'a std::path::Path,
     select: Select,
     hwriter: Option<::writer::Writer<std::fs::File>>,
     cwriter: Option<::writer::Writer<std::fs::File>>,
@@ -18,9 +19,10 @@ enum Select {
 }
 
 impl<'a> Generator<'a> {
-    pub fn new(output_dir: &'a std::path::Path, stem: &'a str, version: &'a str) -> Self {
+    pub fn new(houtput_dir: &'a std::path::Path, coutput_dir: &'a std::path::Path, stem: &'a str, version: &'a str) -> Self {
         Self {
-            output_dir,
+            houtput_dir,
+            coutput_dir,
             select: Select::H,
             hwriter: None,
             cwriter: None,
@@ -76,14 +78,14 @@ impl<'a> Generator<'a> {
     }
 
     fn generate_header(&mut self) -> Result<String> {
-        let filename = format!("{}{}.h", self.output_dir.to_str().unwrap(), self.stem);
+        let filename = format!("{}{}.h", self.houtput_dir.to_str().unwrap(), self.stem);
         let file = std::fs::File::create(filename.clone())?;
         self.hwriter = Some(::writer::Writer::new(file));
         Ok(filename)
     }
 
     fn generate_source(&mut self) -> Result<String> {
-        let filename = format!("{}{}.cpp", self.output_dir.to_str().unwrap()
+        let filename = format!("{}{}.cpp", self.coutput_dir.to_str().unwrap()
         , self.stem);
         let file = std::fs::File::create(filename.clone())?;
         self.cwriter = Some(::writer::Writer::new(file));
