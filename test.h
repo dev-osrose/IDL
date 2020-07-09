@@ -34,6 +34,8 @@ struct VisitorBase {
     virtual bool operator()(int32_t&) = 0;
     virtual bool operator()(uint64_t&) = 0;
     virtual bool operator()(int64_t&) = 0;
+    virtual bool operator()(float&) = 0;
+    virtual bool operator()(double&) = 0;
     virtual bool operator()(std::string&) = 0;
     virtual bool operator()(std::monostate&) = 0;
     template <typename T>

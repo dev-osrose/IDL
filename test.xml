@@ -17,6 +17,7 @@
 
     <complexType name = "PingRequest" />
     <complexType name = "PongResponse" />
+    <complexType name = "PongResponse" />
 
     <complexType name = "LoginRequest">
         <sequence>

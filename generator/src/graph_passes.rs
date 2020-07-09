@@ -172,8 +172,21 @@ fn visit(node: NodeId, graph: &mut Graph, depth: u32) {
     }
 }
 
+fn remove_duplicates(mut packet: Packet) -> Result<Packet, ::failure::Error> {
+    let mut names = std::collections::HashSet::new();
+    packet.contents_mut().retain(|e|
+        if let Some(ref name) = PacketContent::type_from_name(e) {
+                names.insert(name.clone())
+        } else {
+            true
+        });
+    Ok(packet)
+}
+
 pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
     use self::NodeType::*;
+
+    packet = remove_duplicates(packet)?;
 
     let mut graph = Graph::new();
 
