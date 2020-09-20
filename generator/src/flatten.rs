@@ -1,6 +1,6 @@
-use ::packet_schema::ast;
+use ::schema::ast;
 use ::flat_ast;
-use ::packet_schema::Reader;
+use ::schema::Reader;
 use std::fs::File;
 use std::collections::HashSet;
 
