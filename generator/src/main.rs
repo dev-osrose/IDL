@@ -8,10 +8,11 @@ extern crate simple_logger;
 mod flat_ast;
 mod flatten;
 mod writer;
-#[macro_use]
-mod codegen_header;
-mod codegen_source;
+mod codegen;
 mod graph_passes;
+
+use codegen::codegen_header;
+use codegen::codegen_source;
 
 use clap::{App, Arg};
 use log::Level;

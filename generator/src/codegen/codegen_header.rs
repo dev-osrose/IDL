@@ -2,17 +2,7 @@ use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
 
-#[macro_use]
-pub mod macros {
-    #[macro_export]
-    macro_rules! cg {
-        ($v:expr) => (($v).write("")?);
-        ($v:expr, $fmt:expr) => (($v).write(format!($fmt))?);
-        ($v:expr, $fmt:expr, $($arg:tt)*) => (($v).write(format!($fmt, $($arg)*))?);
-    }
-}
-
-pub (super) struct CodeHeaderGenerator<'a, W: Write + 'a> {
+pub (crate) struct CodeHeaderGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>,
     version: String
 }
