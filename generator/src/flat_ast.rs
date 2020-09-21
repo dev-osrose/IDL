@@ -31,7 +31,7 @@ pub enum ComplexTypeContent {
     Empty
 }
 
-pub use ::packet_schema::ast::Occurs;
+pub use ::schema::ast::Occurs;
 
 #[derive(Debug, Clone)]
 pub struct Sequence {
@@ -111,7 +111,7 @@ pub struct Enumeration {
     doc: Option<String>
 }
 
-pub use ::packet_schema::ast::ElementInitValue;
+pub use ::schema::ast::ElementInitValue;
 
 impl PacketContent {
     #[inline]

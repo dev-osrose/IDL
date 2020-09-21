@@ -3,7 +3,7 @@ use std::io::{Result, Write};
 use ::heck::*;
 use std::collections::HashSet;
 
-pub (super) struct CodeSourceGenerator<'a, W: Write + 'a> {
+pub (crate) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>
 }
 

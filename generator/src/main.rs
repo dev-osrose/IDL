@@ -1,4 +1,4 @@
-extern crate packet_schema;
+extern crate schema;
 extern crate failure;
 extern crate heck;
 extern crate clap;
@@ -8,10 +8,11 @@ extern crate simple_logger;
 mod flat_ast;
 mod flatten;
 mod writer;
-#[macro_use]
-mod codegen_header;
-mod codegen_source;
+mod codegen;
 mod graph_passes;
+
+use codegen::codegen_header;
+use codegen::codegen_source;
 
 use clap::{App, Arg};
 use log::Level;
@@ -62,7 +63,7 @@ fn main() -> Result<(), failure::Error> {
         debug!("filename {:?}", filename);
         use std::fs::File;
         let file = File::open(filename)?;
-        let packet = packet_schema::Reader::load_packet(file)?;
+        let packet = schema::Reader::load_packet(file)?;
         if packet.type_() == "tmp" {
             continue;
         }
