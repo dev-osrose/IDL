@@ -136,11 +136,11 @@ class SrvTest : public CRosePacket {
         Bbb y;
 };
 
-void to_json(nlohmann::json& j, const Aaa& data);
-void to_json(nlohmann::json& j, const Bbb& data);
+void to_json(nlohmann::json& j, const SrvTest::Aaa& data);
+void to_json(nlohmann::json& j, const SrvTest::Bbb& data);
 
-void to_json(nlohmann::json& j, const Pote& data);
-void to_json(nlohmann::json& j, const Pote2& data);
+void to_json(nlohmann::json& j, const SrvTest::Pote& data);
+void to_json(nlohmann::json& j, const SrvTest::Pote2& data);
 void to_json(nlohmann::json& j, const SrvTest& data);
 
 }

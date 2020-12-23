@@ -385,46 +385,47 @@ constexpr size_t SrvTest::size() {
 }
 
 
-void to_json(nlohmann::json& j, const Aaa& data) {
-    j = json{
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Aaa& data) {
+    j = nlohmann::json{
         { "value", static_cast<uint8_t>(data) },
     };
 }
-void to_json(nlohmann::json& j, const Bbb& data) {
-    j = json{
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Bbb& data) {
+    j = nlohmann::json{
         { "value", data.operator std::string() },
     };
 }
 
-void to_json(nlohmann::json& j, const Pote& data) {
-    j = json{
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Pote& data) {
+    j = nlohmann::json{
         { "a", data.get_a() },
         { "b", data.get_b() },
         { "c", data.get_c() },
     };
 }
-void to_json(nlohmann::json& j, const Pote2& data) {
-    j = json{
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Pote2& data) {
+    j = nlohmann::json{
         { "a", data.get_a() == 1 },
         { "b", data.get_b() == 1 },
     };
 }
-void to_json(nlohmann::json& j, const SrvTest& data) {
-    j = json{
-        { "packet", "PAKWC_TEST" },
-        { "size", data.get_size() },
-        { "a", data.get_a() == 1 },
-        { "b", data.get_b() == 1 },
-        { "c", data.get_c() },
-        { "d", data.get_d() == 1 },
-        { "e", data.get_e() == 1 },
-        { "f", data.get_f() == 1 },
-        { "g", data.get_g() == 1 },
-        { "h", data.get_h() == 1 },
-        { "pote", data.get_pote() },
-        { "pote2", data.get_pote2() },
-        { "x", data.get_x() },
-        { "y", data.get_y() },
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest& data) {
+    j = nlohmann::json{
+        { "metadata", { "packet", "PAKWC_TEST" }, { "size", data.get_size() } },
+        { "fields", {
+            { "a", data.get_a() == 1 },
+            { "b", data.get_b() == 1 },
+            { "c", data.get_c() },
+            { "d", data.get_d() == 1 },
+            { "e", data.get_e() == 1 },
+            { "f", data.get_f() == 1 },
+            { "g", data.get_g() == 1 },
+            { "h", data.get_h() == 1 },
+            { "pote", data.get_pote() },
+            { "pote2", data.get_pote2() },
+            { "x", data.get_x() },
+            { "y", data.get_y() },
+        } }
     };
 }
 

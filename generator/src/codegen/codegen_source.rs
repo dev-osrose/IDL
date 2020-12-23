@@ -302,12 +302,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn packet_to_json(&mut self, packet: &Packet) -> Result<()> {
-        cg!(self, "void to_json(nlohmann::json& j, const {}& data) {{", packet.class_name());
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}& data) {{", packet.class_name());
         self.indent();
         cg!(self, "j = nlohmann::json{{");
         self.indent();
-        cg!(self, "{{ \"packet\", \"{}\" }},", packet.type_());
-        cg!(self, "{{ \"size\", data.get_size() }},");
+        cg!(self, "{{ \"metadata\", {{ {{ \"packet\", \"{}\" }}, {{ \"size\", data.get_size() }} }} }},", packet.type_());
+        cg!(self, "{{ \"fields\", {{");
+        self.indent();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -323,6 +324,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             }
         }
         self.dedent();
+        cg!(self, "}} }}");
+        self.dedent();
         cg!(self, "}};");
         self.dedent();
         cg!(self, "}}");
@@ -334,7 +337,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn simple_type_to_json(&mut self, packet_name:&str, element: &SimpleType) -> Result<()> {
-        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
         self.indent();
         cg!(self, "j = nlohmann::json{{");
         self.indent();
@@ -369,7 +372,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         if element.inline() == true {
             return Ok(());
         }
-        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
         self.indent();
         use ::flat_ast::ComplexTypeContent::*;
         cg!(self, "j = nlohmann::json{{");
