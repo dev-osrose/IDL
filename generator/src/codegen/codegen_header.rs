@@ -136,8 +136,8 @@ namespace Packet {{
             use self::PacketContent::*;
             match content {
                 Simple(s) => {
-                    self.simple_type_to_json(s)?;
-                    self.simple_type_from_json(s)?;
+                    self.simple_type_to_json(packet.class_name(), s)?;
+                    self.simple_type_from_json(packet.class_name(), s)?;
                 },
                 _ => {}
             }
@@ -149,8 +149,8 @@ namespace Packet {{
             use self::PacketContent::*;
             match content {
                 Complex(c) => {
-                    self.complex_type_to_json(c)?;
-                    self.complex_type_from_json(c)?;
+                    self.complex_type_to_json(packet.class_name(), c)?;
+                    self.complex_type_from_json(packet.class_name(), c)?;
                 },
                 _ => {}
             }
@@ -172,24 +172,24 @@ namespace Packet {{
         Ok(())
     }
 
-    fn simple_type_to_json(&mut self, element: &SimpleType) -> Result<()> {
-        cg!(self, "void to_json(nlohmann::json& j, const {}& data);", element.name());
+    fn simple_type_to_json(&mut self, packet_name: &str, element: &SimpleType) -> Result<()> {
+        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data);", packet_name, element.name());
         Ok(())
     }
 
-    fn simple_type_from_json(&mut self, _element: &SimpleType) -> Result<()> {
+    fn simple_type_from_json(&mut self, _packet_name: &str, _element: &SimpleType) -> Result<()> {
         Ok(())
     }
 
-    fn complex_type_to_json(&mut self, element: &ComplexType) -> Result<()> {
+    fn complex_type_to_json(&mut self, packet_name: &str, element: &ComplexType) -> Result<()> {
         if element.inline() == true {
             return Ok(());
         }
-        cg!(self, "void to_json(nlohmann::json& j, const {}& data);", element.name());
+        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data);", packet_name, element.name());
         Ok(())
     }
 
-    fn complex_type_from_json(&mut self, _element: &ComplexType) -> Result<()> {
+    fn complex_type_from_json(&mut self, _packet_name: &str, _element: &ComplexType) -> Result<()> {
         Ok(())
     }
 
