@@ -3,6 +3,43 @@
 using namespace RoseCommon;
 using namespace RoseCommon::Packet;
 
+SrvTest::Bbb::Bbb() : is_valid(false) {}
+
+SrvTest::Bbb::Bbb(std::string data) : bbb(data), is_valid(false) {
+    bool valid = true;
+    if (bbb.size() > 3) {
+        bbb.resize(3);
+        valid &= true;
+    } else {
+        valid &= true;
+    }
+    is_valid = valid;
+}
+
+bool SrvTest::Bbb::read(CRoseReader& reader) {
+    bool valid = true;
+    if (!reader.get_string(bbb, 3)) {
+        return false;
+    } else {
+        valid &= true;
+    }
+    is_valid = valid;
+    return true;
+}
+
+bool SrvTest::Bbb::write(CRoseBasePolicy& writer) const {
+    if (!writer.set_string(bbb, 3)) {
+        return false;
+    }
+    return true;
+}
+
+constexpr size_t SrvTest::Bbb::size() {
+    size_t size = 0;
+    size += 3; // bbb
+    return size;
+}
+
 
 SrvTest::Pote& SrvTest::Pote::set_a(const uint8_t a) {
     this->data.a = a;
@@ -108,19 +145,28 @@ SrvTest::SrvTest(CRoseReader reader) : CRosePacket(reader) {
     set_server_packet();
     
     if (!reader.get_bitset(bitset1)) {
-        return false;
+        return;
     }
     if (!reader.get_uint32_t(c)) {
-        return false;
+        return;
     }
     if (!reader.get_bitset(bitset2)) {
-        return false;
+        return;
     }
     if (!reader.get_iserialize(pote)) {
-        return false;
+        return;
     }
     if (!reader.get_iserialize(pote2)) {
-        return false;
+        return;
+    }
+    uint8_t x_temp;
+    if (!reader.get_uint8_t(x_temp)) {
+        return;
+    }
+    x = static_cast<Aaa>(x_temp);
+    
+    if (!reader.get_iserialize(y)) {
+        return;
     }
 }
 
@@ -256,7 +302,25 @@ SrvTest::Pote2 SrvTest::get_pote2() const {
     return pote2;
 }
 
-SrvTest SrvTest::create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const SrvTest::Pote& pote, const SrvTest::Pote2& pote2) {
+SrvTest& SrvTest::set_x(const SrvTest::Aaa x) {
+    this->x = x;
+    return *this;
+}
+
+SrvTest::Aaa SrvTest::get_x() const {
+    return x;
+}
+
+SrvTest& SrvTest::set_y(const SrvTest::Bbb y) {
+    this->y = y;
+    return *this;
+}
+
+SrvTest::Bbb SrvTest::get_y() const {
+    return y;
+}
+
+SrvTest SrvTest::create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const SrvTest::Pote& pote, const SrvTest::Pote2& pote2, const SrvTest::Aaa& x, const SrvTest::Bbb& y) {
     SrvTest packet;
     packet.set_a(a);
     packet.set_b(b);
@@ -268,6 +332,8 @@ SrvTest SrvTest::create(const uint32_t& a, const uint32_t& b, const uint32_t& c,
     packet.set_h(h);
     packet.set_pote(pote);
     packet.set_pote2(pote2);
+    packet.set_x(x);
+    packet.set_y(y);
     return packet;
 }
 
@@ -297,6 +363,12 @@ bool SrvTest::pack(CRoseBasePolicy& writer) const {
     if (!writer.set_iserialize(pote2)) {
         return false;
     }
+    if (!writer.set_uint8_t(x)) {
+        return false;
+    }
+    if (!writer.set_iserialize(y)) {
+        return false;
+    }
     return true;
 }
 
@@ -307,6 +379,52 @@ constexpr size_t SrvTest::size() {
     size += 48 / 8; // bitset2
     size += Pote::size(); // pote
     size += Pote2::size(); // pote2
+    size += sizeof(Aaa); // x
+    size += Bbb::size(); // y
     return size;
+}
+
+
+void to_json(nlohmann::json& j, const Aaa& data) {
+    j = json{
+        { "value", static_cast<uint8_t>(data) },
+    };
+}
+void to_json(nlohmann::json& j, const Bbb& data) {
+    j = json{
+        { "value", data.operator std::string() },
+    };
+}
+
+void to_json(nlohmann::json& j, const Pote& data) {
+    j = json{
+        { "a", data.get_a() },
+        { "b", data.get_b() },
+        { "c", data.get_c() },
+    };
+}
+void to_json(nlohmann::json& j, const Pote2& data) {
+    j = json{
+        { "a", data.get_a() == 1 },
+        { "b", data.get_b() == 1 },
+    };
+}
+void to_json(nlohmann::json& j, const SrvTest& data) {
+    j = json{
+        { "packet", "PAKWC_TEST" },
+        { "size", data.get_size() },
+        { "a", data.get_a() == 1 },
+        { "b", data.get_b() == 1 },
+        { "c", data.get_c() },
+        { "d", data.get_d() == 1 },
+        { "e", data.get_e() == 1 },
+        { "f", data.get_f() == 1 },
+        { "g", data.get_g() == 1 },
+        { "h", data.get_h() == 1 },
+        { "pote", data.get_pote() },
+        { "pote2", data.get_pote2() },
+        { "x", data.get_x() },
+        { "y", data.get_y() },
+    };
 }
 

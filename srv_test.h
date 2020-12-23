@@ -1,9 +1,14 @@
 #pragma once
 
-/* Generated with IDL v0.1.4 */
+/* Generated with IDL v0.1.5 */
 
 
 #include "packetfactory.h"
+
+#ifndef JSON_USE_IMPLICIT_CONVERSIONS
+#define JSON_USE_IMPLICIT_CONVERSIONS 0
+#include "json.hpp"
+#endif
 #include <bitset>
 
 namespace RoseCommon {
@@ -20,6 +25,34 @@ class SrvTest : public CRosePacket {
         
         static constexpr size_t size();
         
+        
+        enum Aaa : uint8_t {
+            ABC = 0,
+            DEF = 1,
+            GHI = 2,
+        };
+        
+        struct Bbb : public ISerialize {
+            Bbb();
+            Bbb(std::string);
+            Bbb(const Bbb&) = default;
+            Bbb(Bbb&&) = default;
+            Bbb& operator=(const Bbb&) = default;
+            Bbb& operator=(Bbb&&) = default;
+            virtual ~Bbb() = default;
+            
+            static constexpr size_t size();
+            
+            operator std::string() const { return bbb; }
+            bool isValid() const { return is_valid; }
+            
+            virtual bool read(CRoseReader&) override;
+            virtual bool write(CRoseBasePolicy&) const override;
+            
+            private:
+                std::string bbb;
+                bool is_valid;
+        };
         
         struct Pote : public ISerialize {
             virtual bool read(CRoseReader&) override;
@@ -80,9 +113,13 @@ class SrvTest : public CRosePacket {
         Pote get_pote() const;
         SrvTest& set_pote2(const Pote2);
         Pote2 get_pote2() const;
+        SrvTest& set_x(const Aaa);
+        Aaa get_x() const;
+        SrvTest& set_y(const Bbb);
+        Bbb get_y() const;
         
         
-        static SrvTest create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const Pote& pote, const Pote2& pote2);
+        static SrvTest create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const Pote& pote, const Pote2& pote2, const Aaa& x, const Bbb& y);
         static SrvTest create(const uint8_t* buffer);
         static std::unique_ptr<SrvTest> allocate(const uint8_t* buffer);
     
@@ -95,7 +132,16 @@ class SrvTest : public CRosePacket {
         std::bitset<48> bitset2;
         Pote pote;
         Pote2 pote2;
+        Aaa x;
+        Bbb y;
 };
+
+void to_json(nlohmann::json& j, const Aaa& data);
+void to_json(nlohmann::json& j, const Bbb& data);
+
+void to_json(nlohmann::json& j, const Pote& data);
+void to_json(nlohmann::json& j, const Pote2& data);
+void to_json(nlohmann::json& j, const SrvTest& data);
 
 }
 }
