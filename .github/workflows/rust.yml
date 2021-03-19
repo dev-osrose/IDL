@@ -58,6 +58,7 @@ jobs:
     - name: Release
       uses: ncipollo/release-action@v1
       with:
+        allowUpdates: true
         body: latest packet_generator build
         artifacts: "*-packet_generator.tar.gz,*-packet_generator.zip"
         name: idl-latest
