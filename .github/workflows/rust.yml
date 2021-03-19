@@ -9,23 +9,21 @@ env:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    env:
+      PROCESSOR_ARCH: `uname -p`
     steps:
     - uses: actions/checkout@v2
-    - name: Get process arch
-      id: get-arch-info
-      run: echo "::set-output name=arch::`uname -p`"
-      shell: bash
     - name: Build
       run: cargo build --release --verbose
     - name: Run tests
       run: cargo test --verbose
     - name: Prepare Release
-      run: tar --transform 's/.*\///g' -zcvf ${{github.workspace}}/${{ runner.os }}-${{ steps.get-arch-info.output.arch }}-packet_generator.tar.gz target/*/packet_generator
+      run: tar --transform 's/.*\///g' -zcvf ${{github.workspace}}/${{ runner.os }}-$PROCESSOR_ARCH-packet_generator.tar.gz target/*/packet_generator
     - name: Upload linux build
       uses: actions/upload-artifact@v2
       with:
         name: linux_build
-        path: ${{github.workspace}}/${{ runner.os }}-${{ steps.get-arch-info.output.arch }}-packet_generator.tar.gz
+        path: ${{github.workspace}}/${{ runner.os }}-$PROCESSOR_ARCH-packet_generator.tar.gz
   windows:
     runs-on: windows-latest
     steps:
@@ -59,6 +57,7 @@ jobs:
 #    - name: Release
 #      uses: softprops/action-gh-release@v1
 #      with:
+#        tag_name: env.RELEASE_TAG
 #        files: |
 #          ${{github.workspace}}/${{ runner.os }}-${{ steps.get-arch-info.output.arch }}-packet_generator.tar.gz
 #          windows-amd64-packet_generator.zip
