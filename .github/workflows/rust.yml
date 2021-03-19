@@ -10,7 +10,7 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     env:
-      PROCESSOR_ARCH: `uname -p`
+      PROCESSOR_ARCH: uname -p
     steps:
     - uses: actions/checkout@v2
     - name: Build
