@@ -56,12 +56,14 @@ jobs:
       with:
         name: windows_build
     - name: Release
-      uses: ncipollo/release-action@v1
+      uses: ncipollo/release-action@v1.8.1
       with:
         allowUpdates: true
+        omitBodyDuringUpdate: true
+        omitNameDuringUpdate: true
+        replacesArtifacts: true
         body: latest packet_generator build
         artifacts: "*-packet_generator.tar.gz,*-packet_generator.zip"
-        name: idl-latest
         tag: ${{env.RELEASE_TAG}}
         token: ${{ secrets.GITHUB_TOKEN }}
         
