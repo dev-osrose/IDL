@@ -1,10 +1,14 @@
 name: Rust
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
-  RELEASE_TAG: idl-latest-test
+  RELEASE_TAG: idl-latest
 
 jobs:
   linux:
