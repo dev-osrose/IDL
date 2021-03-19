@@ -9,10 +9,10 @@ env:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    env:
-      PROCESSOR_ARCH: uname -p
     steps:
     - uses: actions/checkout@v2
+    - name: Get processor arch
+      run: echo "PROCESSOR_ARCH=`uname -p`" >> $GITHUB_ENV
     - name: Build
       run: cargo build --release --verbose
     - name: Run tests
@@ -59,7 +59,7 @@ jobs:
 #      with:
 #        tag_name: env.RELEASE_TAG
 #        files: |
-#          ${{github.workspace}}/${{ runner.os }}-${{ steps.get-arch-info.output.arch }}-packet_generator.tar.gz
-#          windows-amd64-packet_generator.zip
+#          *-packet_generator.tar.gz
+#          *-packet_generator.zip
 #      env:
 #        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
