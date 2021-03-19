@@ -13,9 +13,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Get process arch
       id: get-arch-info
-      run: |
-        PROCESSOR_ARCH=`uname -p`
-        echo "::set-output name=arch::$PROCESSOR_ARCH"
+      run: echo "::set-output name=arch::`uname -p`"
       shell: bash
     - name: Build
       run: cargo build --release --verbose
