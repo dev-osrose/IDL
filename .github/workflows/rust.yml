@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
-  RELEASE_TAG: idl-latest
+  RELEASE_TAG: idl-latest-test
 
 jobs:
   linux:
@@ -54,12 +54,12 @@ jobs:
       uses: actions/download-artifact@v2
       with:
         name: windows_build
-#    - name: Release
-#      uses: softprops/action-gh-release@v1
-#      with:
-#        tag_name: env.RELEASE_TAG
-#        files: |
-#          *-packet_generator.tar.gz
-#          *-packet_generator.zip
-#      env:
-#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: env.RELEASE_TAG
+        files: |
+          *-packet_generator.tar.gz
+          *-packet_generator.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
