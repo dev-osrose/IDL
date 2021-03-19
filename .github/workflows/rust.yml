@@ -56,15 +56,11 @@ jobs:
       with:
         name: windows_build
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: ncipollo/release-action@v1
       with:
         body: latest packet_generator build
-        files: |
-          *-packet_generator.tar.gz
-          *-packet_generator.zip
-        draft: false
-        prerelease: false
+        artifacts: "*-packet_generator.tar.gz,*-packet_generator.zip"
         name: idl-latest
-        tag_name: ${{env.RELEASE_TAG}}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{env.RELEASE_TAG}}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
