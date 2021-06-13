@@ -13,6 +13,11 @@ impl<T: Write> Writer<T> {
         }
     }
 
+    #[cfg(test)]
+    pub fn into(self) -> T {
+        self.writer
+    }
+
     fn pad(&mut self) -> Result<&mut Self> {
         for _ in 0..self.indent {
             self.writer.write(b"    ")?;

@@ -269,6 +269,156 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         self.dedent();
         cg!(self, "}}");
         cg!(self);
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Simple(s) => {
+                    self.simple_type_to_json(packet.class_name(), s)?;
+                    self.simple_type_from_json(packet.class_name(), s)?;
+                },
+                _ => {}
+            }
+        }
+
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Complex(c) => {
+                    self.complex_type_to_json(packet.class_name(), c)?;
+                    self.complex_type_from_json(packet.class_name(), c)?;
+                },
+                _ => {}
+            }
+        }
+
+        self.packet_to_json(packet)?;
+        cg!(self);
+        self.packet_from_json(packet)?;
+        Ok(())
+    }
+
+    fn packet_to_json(&mut self, packet: &Packet) -> Result<()> {
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}& data) {{", packet.class_name());
+        self.indent();
+        cg!(self, "j = nlohmann::json{{");
+        self.indent();
+        cg!(self, "{{ \"metadata\", {{ {{ \"packet\", \"{}\" }}, {{ \"size\", data.get_size() }} }} }},", packet.type_());
+        cg!(self, "{{ \"fields\", {{");
+        self.indent();
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Element(e) => {
+                    let bitfield = if e.bitset().is_some() {
+                        " == 1"
+                    } else {
+                        ""
+                    };
+                    cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", e.name(), bitfield);
+                }
+                _ => {}
+            }
+        }
+        self.dedent();
+        cg!(self, "}} }}");
+        self.dedent();
+        cg!(self, "}};");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn packet_from_json(&mut self, _packet: &Packet) -> Result<()> {
+        Ok(())
+    }
+
+    fn simple_type_to_json(&mut self, packet_name:&str, element: &SimpleType) -> Result<()> {
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
+        self.indent();
+        cg!(self, "j = nlohmann::json{{");
+        self.indent();
+        for content in element.contents() {
+            match content {
+                SimpleTypeContent::Restriction(res) => {
+                    use self::RestrictionContent::*;
+                    let is_enum = res.contents().iter().find(|content| match content {
+                        Enumeration(_) => true,
+                        _ => false
+                    }).is_some();
+                    if is_enum {
+                        cg!(self, "{{ \"value\", static_cast<{}>(data) }},", res.base());
+                    } else {
+                        cg!(self, "{{ \"value\", data.operator {}() }},", res.base());
+                    }
+                }
+            }
+        }
+        self.dedent();
+        cg!(self, "}};");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn simple_type_from_json(&mut self, _packet_name: &str, _element: &SimpleType) -> Result<()> {
+        Ok(())
+    }
+
+    fn complex_type_to_json(&mut self, packet_name: &str, element: &ComplexType) -> Result<()> {
+        if element.inline() == true {
+            return Ok(());
+        }
+        cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
+        self.indent();
+        use ::flat_ast::ComplexTypeContent::*;
+        cg!(self, "j = nlohmann::json{{");
+        self.indent();
+        match element.content() {
+            Seq(ref s) => {
+                for elem in s.elements() {
+                    let bitfield = if elem.bitset().is_some() {
+                        " == 1"
+                    } else {
+                        ""
+                    };
+                    cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", elem.name(), bitfield);
+                }
+            },
+            Choice(ref c) => {
+                for elem in c.elements() {
+                    if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                        for e in seq.elements() {
+                            let bitfield = if e.bitset().is_some() {
+                                " == 1"
+                            } else {
+                                ""
+                            };
+                            cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", e.name(), bitfield);
+                        }
+                    } else {
+                        let bitfield = if elem.bitset().is_some() {
+                            " == 1"
+                        } else {
+                            ""
+                        };
+                        cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", elem.name(), bitfield);
+                    }
+                }
+            },
+            Empty => {}
+        }
+        self.dedent();
+        cg!(self, "}};");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn complex_type_from_json(&mut self, _packet_name: &str, _element: &ComplexType) -> Result<()> {
         Ok(())
     }
 

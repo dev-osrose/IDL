@@ -35,6 +35,11 @@ impl<'a, W: Write> CodeHeaderGenerator<'a, W> {
         self.doc(packet.doc())?;
         cg!(self);
         cg!(self, r#"#include "packetfactory.h""#);
+        cg!(self);
+        cg!(self, "#ifndef JSON_USE_IMPLICIT_CONVERSIONS");
+        cg!(self, "#define JSON_USE_IMPLICIT_CONVERSIONS 0");
+        cg!(self, "#include \"json.hpp\"");
+        cg!(self, "#endif");
         
         for content in packet.contents() {
             use self::PacketContent::*;
@@ -126,7 +131,65 @@ namespace Packet {{
         self.dedent();
         cg!(self, "}};");
         cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Simple(s) => {
+                    self.simple_type_to_json(packet.class_name(), s)?;
+                    self.simple_type_from_json(packet.class_name(), s)?;
+                },
+                _ => {}
+            }
+        }
+
+        cg!(self);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Complex(c) => {
+                    self.complex_type_to_json(packet.class_name(), c)?;
+                    self.complex_type_from_json(packet.class_name(), c)?;
+                },
+                _ => {}
+            }
+        }
+
+        self.packet_to_json(packet)?;
+        cg!(self);
+        self.packet_from_json(packet)?;
         cg!(self, "}}\n}}");
+        Ok(())
+    }
+
+    fn packet_to_json(&mut self, packet: &Packet) -> Result<()> {
+        cg!(self, "void to_json(nlohmann::json& j, const {}& data);", packet.class_name());
+        Ok(())
+    }
+
+    fn packet_from_json(&mut self, _packet: &Packet) -> Result<()> {
+        Ok(())
+    }
+
+    fn simple_type_to_json(&mut self, packet_name: &str, element: &SimpleType) -> Result<()> {
+        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data);", packet_name, element.name());
+        Ok(())
+    }
+
+    fn simple_type_from_json(&mut self, _packet_name: &str, _element: &SimpleType) -> Result<()> {
+        Ok(())
+    }
+
+    fn complex_type_to_json(&mut self, packet_name: &str, element: &ComplexType) -> Result<()> {
+        if element.inline() == true {
+            return Ok(());
+        }
+        cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data);", packet_name, element.name());
+        Ok(())
+    }
+
+    fn complex_type_from_json(&mut self, _packet_name: &str, _element: &ComplexType) -> Result<()> {
         Ok(())
     }
 
