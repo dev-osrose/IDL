@@ -145,7 +145,7 @@ impl Packet {
     pub fn new(type_: String
                , doc: Option<String>) -> Self {
         use ::heck::*;
-        let name = type_.clone().to_camel_case();
+        let name = type_.clone().to_lower_camel_case();
         let (class_name, filename) = if name.starts_with("Isc") {
             (name.clone(),
              name.clone().to_snake_case())
@@ -438,8 +438,8 @@ impl Bitset {
 
 impl SimpleType {
     pub fn new(name: String, doc: Option<String>) -> Self {
-        use heck::CamelCase;
-        SimpleType{ name: name.to_camel_case(), contents: Vec::new(), doc }
+        use heck::ToLowerCamelCase;
+        SimpleType{ name: name.to_lower_camel_case(), contents: Vec::new(), doc }
     }
 
     pub fn add_content(&mut self, content: SimpleTypeContent) {

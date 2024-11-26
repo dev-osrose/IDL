@@ -8,7 +8,7 @@ pub struct Attributes {
 }
 
 pub trait Parse: Sized {
-    fn parse(&str) -> Result<Self>;
+    fn parse(value: &str) -> Result<Self>;
 }
 
 impl Attributes {

@@ -3,9 +3,9 @@
 using namespace RoseCommon;
 using namespace RoseCommon::Packet;
 
-SrvTest::Bbb::Bbb() : is_valid(false) {}
+SrvTest::bbb::bbb() : is_valid(false) {}
 
-SrvTest::Bbb::Bbb(std::string data) : bbb(data), is_valid(false) {
+SrvTest::bbb::bbb(std::string data) : bbb(data), is_valid(false) {
     bool valid = true;
     if (bbb.size() > 3) {
         bbb.resize(3);
@@ -16,7 +16,7 @@ SrvTest::Bbb::Bbb(std::string data) : bbb(data), is_valid(false) {
     is_valid = valid;
 }
 
-bool SrvTest::Bbb::read(CRoseReader& reader) {
+bool SrvTest::bbb::read(CRoseReader& reader) {
     bool valid = true;
     if (!reader.get_string(bbb, 3)) {
         return false;
@@ -27,114 +27,19 @@ bool SrvTest::Bbb::read(CRoseReader& reader) {
     return true;
 }
 
-bool SrvTest::Bbb::write(CRoseBasePolicy& writer) const {
+bool SrvTest::bbb::write(CRoseBasePolicy& writer) const {
     if (!writer.set_string(bbb, 3)) {
         return false;
     }
     return true;
 }
 
-constexpr size_t SrvTest::Bbb::size() {
+constexpr size_t SrvTest::bbb::size() {
     size_t size = 0;
     size += 3; // bbb
     return size;
 }
 
-
-SrvTest::Pote& SrvTest::Pote::set_a(const uint8_t a) {
-    this->data.a = a;
-    return *this;
-}
-
-uint8_t SrvTest::Pote::get_a() const {
-    return data.a;
-}
-
-SrvTest::Pote& SrvTest::Pote::set_b(const uint8_t b) {
-    this->data.b = b;
-    return *this;
-}
-
-uint8_t SrvTest::Pote::get_b() const {
-    return data.b;
-}
-
-SrvTest::Pote& SrvTest::Pote::set_c(const uint8_t c) {
-    this->data.c = c;
-    return *this;
-}
-
-uint8_t SrvTest::Pote::get_c() const {
-    return data.c;
-}
-
-bool SrvTest::Pote::write(CRoseBasePolicy& writer) const {
-    if (!writer.set_uint8_t(data.c)) {
-        return false;
-    }
-    return true;
-}
-
-bool SrvTest::Pote::read(CRoseReader& reader) {
-    if (!reader.get_uint8_t(data.c)) {
-        return false;
-    }
-    return true;
-}
-
-constexpr size_t SrvTest::Pote::size() {
-    return sizeof(data);
-}
-
-SrvTest::Pote2& SrvTest::Pote2::set_a(const uint8_t a) {
-    for (size_t i = 0; i < 1; ++i) {
-        this->bitset3[i + 0] = a & (1 << i);
-    }
-    return *this;
-}
-
-uint8_t SrvTest::Pote2::get_a() const {
-    uint8_t a_tmp = 0;
-    for (size_t i = 0; i < 1; ++i) {
-        a_tmp |= (this->bitset3[i + 0] << i);
-    }
-    return a_tmp;
-}
-
-SrvTest::Pote2& SrvTest::Pote2::set_b(const uint8_t b) {
-    for (size_t i = 0; i < 7; ++i) {
-        this->bitset3[i + 1] = b & (1 << i);
-    }
-    return *this;
-}
-
-uint8_t SrvTest::Pote2::get_b() const {
-    uint8_t b_tmp = 0;
-    for (size_t i = 0; i < 7; ++i) {
-        b_tmp |= (this->bitset3[i + 1] << i);
-    }
-    return b_tmp;
-}
-
-bool SrvTest::Pote2::write(CRoseBasePolicy& writer) const {
-    if (!writer.set_bitset(bitset3)) {
-        return false;
-    }
-    return true;
-}
-
-bool SrvTest::Pote2::read(CRoseReader& reader) {
-    if (!reader.get_bitset(bitset3)) {
-        return false;
-    }
-    return true;
-}
-
-constexpr size_t SrvTest::Pote2::size() {
-    size_t size = 0;
-    size += 8 / 8; // bitset3
-    return size;
-}
 
 
 SrvTest::SrvTest() : CRosePacket(SrvTest::PACKET_ID) {
@@ -153,18 +58,15 @@ SrvTest::SrvTest(CRoseReader reader) : CRosePacket(reader) {
     if (!reader.get_bitset(bitset2)) {
         return;
     }
-    if (!reader.get_iserialize(pote)) {
+    if (!reader.get_Pote(pote)) {
         return;
     }
-    if (!reader.get_iserialize(pote2)) {
+    if (!reader.get_Pote2(pote2)) {
         return;
     }
-    uint8_t x_temp;
-    if (!reader.get_uint8_t(x_temp)) {
+    if (!reader.get_iserialize(x)) {
         return;
     }
-    x = static_cast<Aaa>(x_temp);
-    
     if (!reader.get_iserialize(y)) {
         return;
     }
@@ -302,25 +204,25 @@ SrvTest::Pote2 SrvTest::get_pote2() const {
     return pote2;
 }
 
-SrvTest& SrvTest::set_x(const SrvTest::Aaa x) {
+SrvTest& SrvTest::set_x(const Aaa x) {
     this->x = x;
     return *this;
 }
 
-SrvTest::Aaa SrvTest::get_x() const {
+Aaa SrvTest::get_x() const {
     return x;
 }
 
-SrvTest& SrvTest::set_y(const SrvTest::Bbb y) {
+SrvTest& SrvTest::set_y(const Bbb y) {
     this->y = y;
     return *this;
 }
 
-SrvTest::Bbb SrvTest::get_y() const {
+Bbb SrvTest::get_y() const {
     return y;
 }
 
-SrvTest SrvTest::create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const SrvTest::Pote& pote, const SrvTest::Pote2& pote2, const SrvTest::Aaa& x, const SrvTest::Bbb& y) {
+SrvTest SrvTest::create(const uint32_t& a, const uint32_t& b, const uint32_t& c, const uint32_t& d, const uint32_t& e, const uint32_t& f, const uint32_t& g, const uint32_t& h, const SrvTest::Pote& pote, const SrvTest::Pote2& pote2, const Aaa& x, const Bbb& y) {
     SrvTest packet;
     packet.set_a(a);
     packet.set_b(b);
@@ -357,13 +259,13 @@ bool SrvTest::pack(CRoseBasePolicy& writer) const {
     if (!writer.set_bitset(bitset2)) {
         return false;
     }
-    if (!writer.set_iserialize(pote)) {
+    if (!writer.set_Pote(pote)) {
         return false;
     }
-    if (!writer.set_iserialize(pote2)) {
+    if (!writer.set_Pote2(pote2)) {
         return false;
     }
-    if (!writer.set_uint8_t(x)) {
+    if (!writer.set_iserialize(x)) {
         return false;
     }
     if (!writer.set_iserialize(y)) {
@@ -377,41 +279,28 @@ constexpr size_t SrvTest::size() {
     size += 8 / 8; // bitset1
     size += sizeof(uint32_t); // c
     size += 48 / 8; // bitset2
-    size += Pote::size(); // pote
-    size += Pote2::size(); // pote2
+    size += sizeof(Pote); // pote
+    size += sizeof(Pote2); // pote2
     size += sizeof(Aaa); // x
-    size += Bbb::size(); // y
+    size += sizeof(Bbb); // y
     return size;
 }
 
 
-void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Aaa& data) {
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::aaa& data) {
     j = nlohmann::json{
         { "value", static_cast<uint8_t>(data) },
     };
 }
-void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Bbb& data) {
+void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::bbb& data) {
     j = nlohmann::json{
         { "value", data.operator std::string() },
     };
 }
 
-void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Pote& data) {
-    j = nlohmann::json{
-        { "a", data.get_a() },
-        { "b", data.get_b() },
-        { "c", data.get_c() },
-    };
-}
-void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest::Pote2& data) {
-    j = nlohmann::json{
-        { "a", data.get_a() == 1 },
-        { "b", data.get_b() == 1 },
-    };
-}
 void RoseCommon::Packet::to_json(nlohmann::json& j, const SrvTest& data) {
     j = nlohmann::json{
-        { "metadata", { "packet", "PAKWC_TEST" }, { "size", data.get_size() } },
+        { "metadata", { { "packet", "PAKWC_TEST" }, { "size", data.get_size() } } },
         { "fields", {
             { "a", data.get_a() == 1 },
             { "b", data.get_b() == 1 },

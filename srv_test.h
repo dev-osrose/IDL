@@ -26,20 +26,20 @@ class SrvTest : public CRosePacket {
         static constexpr size_t size();
         
         
-        enum Aaa : uint8_t {
+        enum aaa : uint8_t {
             ABC = 0,
             DEF = 1,
             GHI = 2,
         };
         
-        struct Bbb : public ISerialize {
-            Bbb();
-            Bbb(std::string);
-            Bbb(const Bbb&) = default;
-            Bbb(Bbb&&) = default;
-            Bbb& operator=(const Bbb&) = default;
-            Bbb& operator=(Bbb&&) = default;
-            virtual ~Bbb() = default;
+        struct bbb : public ISerialize {
+            bbb();
+            bbb(std::string);
+            bbb(const bbb&) = default;
+            bbb(bbb&&) = default;
+            bbb& operator=(const bbb&) = default;
+            bbb& operator=(bbb&&) = default;
+            virtual ~bbb() = default;
             
             static constexpr size_t size();
             
@@ -52,44 +52,6 @@ class SrvTest : public CRosePacket {
             private:
                 std::string bbb;
                 bool is_valid;
-        };
-        
-        struct Pote : public ISerialize {
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            static constexpr size_t size();
-            
-            Pote& set_a(const uint8_t);
-            uint8_t get_a() const;
-            Pote& set_b(const uint8_t);
-            uint8_t get_b() const;
-            Pote& set_c(const uint8_t);
-            uint8_t get_c() const;
-            
-            private:
-                union {
-                    PACK(struct {
-                        uint8_t a : 1;
-                        uint8_t b : 7;
-                    });
-                    uint8_t c;
-                } data;
-        };
-        
-        struct Pote2 : public ISerialize {
-            virtual bool read(CRoseReader&) override;
-            virtual bool write(CRoseBasePolicy&) const override;
-            
-            static constexpr size_t size();
-            
-            Pote2& set_a(const uint8_t);
-            uint8_t get_a() const;
-            Pote2& set_b(const uint8_t);
-            uint8_t get_b() const;
-            
-            private:
-                std::bitset<8> bitset3;
         };
         
         
@@ -136,11 +98,9 @@ class SrvTest : public CRosePacket {
         Bbb y;
 };
 
-void to_json(nlohmann::json& j, const SrvTest::Aaa& data);
-void to_json(nlohmann::json& j, const SrvTest::Bbb& data);
+void to_json(nlohmann::json& j, const SrvTest::aaa& data);
+void to_json(nlohmann::json& j, const SrvTest::bbb& data);
 
-void to_json(nlohmann::json& j, const SrvTest::Pote& data);
-void to_json(nlohmann::json& j, const SrvTest::Pote2& data);
 void to_json(nlohmann::json& j, const SrvTest& data);
 
 }

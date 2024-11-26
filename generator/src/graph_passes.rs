@@ -1,6 +1,6 @@
 use ::flat_ast::*;
 use std::collections::{BTreeMap, HashSet};
-use heck::CamelCase;
+use heck::ToLowerCamelCase;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 struct NodeId(usize);
@@ -250,7 +250,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 for content in s.contents() {
                     match content {
                         Restriction(ref r) => {
-                            if let Ok(node) = graph.get_node(&r.base().to_owned().to_camel_case()) {
+                            if let Ok(node) = graph.get_node(&r.base().to_owned().to_lower_camel_case()) {
                                 let to = graph.get_node(s.name()).unwrap();
                                 graph.add_edge(to, node);
                             }
@@ -260,7 +260,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             },
             PacketContent::Element(ref e) => {
                 trace!("adding start node {}", e.type_());
-                graph.add_start_node(&e.type_().to_owned().to_camel_case());
+                graph.add_start_node(&e.type_().to_owned().to_lower_camel_case());
                 match e.occurs() {
                     Some(self::Occurs::Unbounded) => vector = true,
                     Some(self::Occurs::Num(_)) => array = true,

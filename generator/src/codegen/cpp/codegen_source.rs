@@ -104,7 +104,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         read_write.clone()
                     } else if let Some(ref enum_type) = elem.enum_type() {
                         enum_type.clone()
-                    } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                    } else if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) {
                         "iserialize".to_owned()
                     } else {
                         clean_base(elem.type_())
@@ -232,7 +232,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     if let Some(ref size) = elem.size_occurs() {
                         cg!(self, "size += sizeof({}); // {}", size, elem.name());
                     }
-                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) && elem.enum_type().is_none() {
+                    let rhs = if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) && elem.enum_type().is_none() {
                         format!("{}::size()", elem.type_())
                     } else {
                         let rhs = elem.bitset().as_ref().map_or(Some(format!("sizeof({})", elem.type_())), |bitset| if bitset.start == 0 {
@@ -443,7 +443,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         if elem.type_() == "std::string" {
                             continue;
                         }
-                        let rhs = if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                        let rhs = if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) {
                             format!("{}::size()", elem.type_())
                         } else {
                             let rhs = elem.bitset().as_ref().map_or(Some(format!("sizeof({})", elem.type_())), |bitset| if bitset.start == 0 {
@@ -739,7 +739,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         read_write.clone()
                     } else if let Some(ref enum_type) = elem.enum_type() {
                         enum_type.clone()
-                    } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+                    } else if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) {
                         "iserialize".to_owned()
                     } else {
                         clean_base(elem.type_())
@@ -799,7 +799,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for elem in packet.elements() {
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
-            } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+            } else if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) {
                 "iserialize".to_owned()
             } else {
                 clean_base(elem.type_())
@@ -865,7 +865,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for elem in packet.elements() {
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
-            } else if iserialize.contains(&elem.type_().to_owned().to_camel_case()) {
+            } else if iserialize.contains(&elem.type_().to_owned().to_lower_camel_case()) {
                 "iserialize".to_owned()
             } else {
                 clean_base(elem.type_())

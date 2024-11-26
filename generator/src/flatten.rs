@@ -111,7 +111,7 @@ impl<'a> Context<'a> {
     fn stop_bits(&mut self) {
         if let Some(bitset) = self.current_bitset {
             if bitset % 8 != 0 {
-                panic!(format!("Error, {} bits cannot be aligned", bitset));
+                panic!("Error, {} bits cannot be aligned", bitset);
             }
             trace!("generating bitset of {} bits", bitset);
             for elem in self.find_bitset_mut_ref(self.bitsets) {
