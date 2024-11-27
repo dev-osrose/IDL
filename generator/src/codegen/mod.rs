@@ -16,11 +16,14 @@ pub(crate) trait Codegen {
 }
 
 pub mod cpp;
+pub mod rust;
 
 use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum CodegenCommands {
     #[command(name = "cpp")]
-    CppCommand(cpp::CppArgs)
+    CppCommand(cpp::CppArgs),
+    #[command(name = "rust")]
+    RustCommand(rust::RustArgs)
 }
