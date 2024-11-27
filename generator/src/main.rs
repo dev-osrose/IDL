@@ -11,7 +11,7 @@ mod writer;
 mod codegen;
 mod graph_passes;
 
-use codegen::{cpp, Codegen, CodegenCommands};
+use codegen::{cpp, rust, Codegen, CodegenCommands};
 
 use log::Level;
 
@@ -24,7 +24,7 @@ struct Args {
     #[arg(short, long)]
     inputs: Vec<String>,
     #[command(subcommand)]
-    command: codegen::CodegenCommands,
+    command: CodegenCommands,
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8
 
@@ -53,8 +53,9 @@ fn main() -> Result<(), failure::Error> {
         trace!("packet {:?}", packet);
         let packet = graph_passes::run(packet)?;
         debug!("packet {:#?}", packet);
-        let mut generator = match &args.command {
-            CodegenCommands::CppCommand(args) => cpp::Generator::new(args)
+        let mut generator: Box<dyn Codegen> = match &args.command {
+            CodegenCommands::CppCommand(args) => Box::new(cpp::Generator::new(args)),
+            CodegenCommands::RustCommand(args) => Box::new(rust::Generator::new(args)),
         };
         generator.generate(VERSION, &packet)?;
         info!("Generated packet {}", packet.type_());
