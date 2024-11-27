@@ -1,7 +1,8 @@
 use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
-use std::collections::HashSet;
+use std::collections::HashMap;
+use schema::ast::Occurs::Unbounded;
 
 pub (crate) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>,
@@ -40,31 +41,28 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
 
         let iserialize = packet.contents().iter().filter_map(|elem| {
-            if PacketContent::is_type(elem) {
-                PacketContent::type_from_name(elem)
-            } else {
-                match elem {
-                    PacketContent::Element(ref e) => {
-                        match e.type_().as_ref() {
-                            "int8_t" => Some("i8".to_string()),
-                            "uint8_t" => Some("u8".to_string()),
-                            "int16_t" => Some("i16".to_string()),
-                            "uint16_t" => Some("u16".to_string()),
-                            "int32_t" => Some("i32".to_string()),
-                            "uint32_t" => Some("u32".to_string()),
-                            "int64_t" => Some("i64".to_string()),
-                            "uint64_t" => Some("u64".to_string()),
-                            "char" => Some("u8".to_string()),
-                            "float" => Some("f32".to_string()),
-                            "double" => Some("f64".to_string()),
-                            "std::string" => Some("String".to_string()),
-                            _ => Some(e.type_().to_string())
-                        }
-                    },
-                    _ => None
+            match elem {
+                PacketContent::Element(ref e) => {
+                    let rust_type = match e.type_().as_ref() {
+                        "int8_t" => "i8",
+                        "uint8_t" => "u8",
+                        "int16_t" => "i16",
+                        "uint16_t" => "u16",
+                        "int32_t" => "i32",
+                        "uint32_t" => "u32",
+                        "int64_t" => "i64",
+                        "uint64_t" => "u64",
+                        "char" => "u8",
+                        "float" => "f32",
+                        "double" => "f64",
+                        "std::string" => "String",
+                        _ => e.type_().as_str(),
+                    };
+                    Some((e.type_().to_string(), rust_type.to_string())) // Map key and value
                 }
+                _ => None,
             }
-        }).collect::<::std::collections::HashSet<String>>();
+        }).collect::<HashMap<String, String>>(); // Collect into a HashMap
 
         // Need to drop out the struct
         cg!(self, "pub struct {} {{", packet.class_name());
@@ -72,7 +70,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Element(ref elem) => self.element(elem)?,
+                Element(ref elem) => self.element(elem, &iserialize)?,
                 _ => {}
             };
         }
@@ -100,7 +98,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn element(&mut self, elem: &Element) -> Result<()> {
+    fn element(&mut self, elem: &Element, iserialize: &HashMap<String, String>) -> Result<()> {
         self.doc(elem.doc())?;
 
         if let Some(bitset) = elem.bitset() {
@@ -110,16 +108,18 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             return Ok(());
         }
 
+        let Some(rust_type) = iserialize.get(elem.type_()) else { warn!(r#"Type "{}" not found"#, elem.type_()); return Ok(()) };
+
         let (type_, bits) = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
             let type_ = match o {
-                Unbounded => format!("Vec<{}>", elem.type_()),
-                Num(n) => format!("[{}; {}]", elem.type_(), n)
+                Unbounded => format!("Vec<{}>", rust_type),
+                Num(n) => format!("[{}; {}]", rust_type, n)
             };
             (type_, "".to_string())
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
-            (elem.type_().to_owned(), bits)
+            (rust_type.to_owned(), bits)
         };
         let default = match elem.init() {
             self::ElementInitValue::Default(d) => " = ".to_string() + d,
@@ -127,13 +127,5 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         };
         cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
         Ok(())
-    }
-}
-
-fn clean_base(base: &str) -> String {
-    if base.contains("::") {
-        base.split("::").skip(1).collect()
-    } else {
-        base.to_string()
     }
 }
