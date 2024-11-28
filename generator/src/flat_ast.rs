@@ -439,7 +439,6 @@ impl Bitset {
 
 impl SimpleType {
     pub fn new(name: String, doc: Option<String>) -> Self {
-        use heck::ToLowerCamelCase;
         SimpleType{ name: name.to_upper_camel_case(), contents: Vec::new(), doc }
     }
 
