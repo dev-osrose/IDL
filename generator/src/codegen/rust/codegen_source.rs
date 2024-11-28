@@ -35,16 +35,6 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::{{Encode, Decode}};"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
 
-        for content in packet.contents() {
-            use self::PacketContent::*;
-            match content {
-                Include(ref inc, system) => {
-                    cg!(self, r#"use {};"#, inc);
-                },
-                _ => {}
-            };
-        }
-        cg!(self);
 
         let iserialize = packet.contents().iter().filter_map(|elem| {
             match elem {
@@ -223,7 +213,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use ::flat_ast::Occurs::*;
             let type_ = match o {
                 Unbounded => format!("Vec<{}>", rust_type),
-                Num(n) => format!("[{}; {}]", rust_type, n)
+                Num(n) => {
+                    if n.parse::<usize>().is_ok() {
+                        format!("[{}; {}]", rust_type, n)
+                    } else {
+                        format!("[{}; ({} as usize)]", rust_type, n)
+                    }
+                }
             };
             (type_, "".to_string())
         } else {
