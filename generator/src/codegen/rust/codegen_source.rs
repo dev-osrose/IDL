@@ -217,10 +217,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
             (rust_type.to_owned(), bits)
         };
-        let default = match elem.init() {
-            self::ElementInitValue::Default(d) => " = ".to_string() + d,
-            _ => "".to_string()
-        };
+        // let default = match elem.init() {
+        //     self::ElementInitValue::Default(d) => " = ".to_string() + d,
+        //     _ => "".to_string()
+        // };
         // cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
         cg!(self, "{}: {}{},", elem.name(), type_, bits);
         Ok(())
