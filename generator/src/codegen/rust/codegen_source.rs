@@ -33,12 +33,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
         let version = self.version.clone();
         cg!(self, "/* Generated with IDL v{} */\n", version);
-        cg!(self);
         cg!(self, r#"use bincode::{{Encode, Decode}};"#);
+        cg!(self, r#"use crate::packet::PacketPayload;"#);
         cg!(self);
-
-
-        cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
 
         let iserialize = packet.contents().iter().filter_map(|elem| {
             match elem {
@@ -60,11 +57,56 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     };
                     Some((e.type_().to_string(), rust_type.to_string())) // Map key and value
                 }
+                PacketContent::Simple(ref e) => {
+                    let mut rust_type = ("".to_string(), "".to_string());
+                    for content in e.contents() {
+                        rust_type = match content {
+                            SimpleTypeContent::Restriction(res) => {
+                                let rust_type = match res.base().as_ref() {
+                                    "int8_t" => "i8",
+                                    "uint8_t" => "u8",
+                                    "int16_t" => "i16",
+                                    "uint16_t" => "u16",
+                                    "int32_t" => "i32",
+                                    "uint32_t" => "u32",
+                                    "int64_t" => "i64",
+                                    "uint64_t" => "u64",
+                                    "char" => "u8",
+                                    "float" => "f32",
+                                    "double" => "f64",
+                                    "std::string" => "String",
+                                    _ => res.base().as_str(),
+                                };
+                                (res.base().clone(), rust_type.to_string())
+                            },
+                        };
+                    }
+                    Some(rust_type)
+                }
+                // TODO Map complex type
                 _ => None,
             }
         }).collect::<HashMap<String, String>>(); // Collect into a HashMap
 
-        // Need to drop out the struct
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Simple(simple) => self.simple_type(simple, &iserialize)?,
+                _ => {}
+            }
+        }
+        cg!(self);
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Complex(ref complex) => self.complex_type(complex, &iserialize)?,
+                _ => {}
+            };
+        }
+
+        cg!(self);
+
+        cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
         cg!(self, "pub struct {} {{", packet.class_name());
         self.indent();
         for content in packet.contents() {
@@ -76,6 +118,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
         self.dedent();
         cg!(self, "}}");
+
+        cg!(self);
+        cg!(self, "impl PacketPayload for {} {{}}", packet.class_name());
 
 
         Ok(())
@@ -98,6 +143,57 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
+    fn complex_type(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
+        use ::flat_ast::ComplexTypeContent::*;
+        if complex.inline() == false {
+            cg!(self, "struct {} {{", complex.name());
+            self.indent();
+            match complex.content() {
+                Seq(ref s) => {
+                    for elem in s.elements() {
+                        self.element(elem, &iserialize)?;
+                    }
+                },
+                Choice(ref c) => {
+                    cg!(self, "union Data {{");
+                    self.indent();
+                    for elem in c.elements() {
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, "struct {{");
+                            self.indent();
+                            for e in seq.elements() {
+                                self.element(e, &iserialize)?;
+                            }
+                            self.dedent();
+                            cg!(self, "}});");
+                        } else {
+                            self.element(elem, &iserialize)?;
+                        }
+                    }
+                    self.dedent();
+                    cg!(self, "}}");
+                    self.dedent();
+                },
+                Empty => {}
+            }
+            self.dedent();
+            cg!(self, "}};");
+            cg!(self);
+        }
+        Ok(())
+    }
+
+    fn simple_type(&mut self, simple: &SimpleType, iserialize: &HashMap<String, String>) -> Result<()> {
+        cg!(self);
+        self.doc(simple.doc())?;
+        for content in simple.contents() {
+            match content {
+                SimpleTypeContent::Restriction(res) => self.restrict(res, simple.name(), &iserialize)?
+            }
+        }
+        Ok(())
+    }
+
     fn element(&mut self, elem: &Element, iserialize: &HashMap<String, String>) -> Result<()> {
         self.doc(elem.doc())?;
 
@@ -108,7 +204,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             return Ok(());
         }
 
-        let Some(rust_type) = iserialize.get(elem.type_()) else { warn!(r#"Type "{}" not found"#, elem.type_()); return Ok(()) };
+        let Some(rust_type) = iserialize.get(elem.type_().trim()) else { warn!(r#"Type "{}" not found"#, elem.type_()); return Ok(()) };
 
         let (type_, bits) = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
@@ -126,6 +222,37 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             _ => "".to_string()
         };
         cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
+        Ok(())
+    }
+
+    fn restrict(&mut self, restrict: &Restriction, name: &str, iserialize: &HashMap<String, String>) -> Result<()> {
+        use self::RestrictionContent::*;
+        let is_enum = restrict.contents().iter().find(|content| match content {
+            Enumeration(_) => true,
+            _ => false
+        }).is_some();
+        self.doc(restrict.doc())?;
+        let base = restrict.base().trim();
+        let Some(rust_type) = iserialize.get(base) else { warn!(r#"Type "{}" not found"#, base); return Ok(()) };
+
+        if is_enum {
+            cg!(self, r#"#[repr({})]"#, rust_type);
+            cg!(self, "enum {} {{", name.to_upper_camel_case());
+            self.indent();
+            for content in restrict.contents() {
+                if let Enumeration(en) = content {
+                    self.doc(en.doc())?;
+                    cg!(self, "{} = {},", en.value(), en.id());
+                }
+            }
+        } else {
+            cg!(self, "struct {} {{", name.to_upper_camel_case());
+            self.indent();
+            cg!(self, "{}: {},", name.to_string().to_snake_case(), rust_type);
+        }
+
+        self.dedent();
+        cg!(self, "}}");
         Ok(())
     }
 }
