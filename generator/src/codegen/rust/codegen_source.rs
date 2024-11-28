@@ -252,6 +252,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
         if is_enum {
             cg!(self, r#"#[repr({})]"#, rust_type);
+            cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
             cg!(self, "enum {} {{", name.to_upper_camel_case());
             self.indent();
             for content in restrict.contents() {
@@ -261,6 +262,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 }
             }
         } else {
+            cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
             cg!(self, "struct {} {{", name.to_upper_camel_case());
             self.indent();
             cg!(self, "{}: {},", name.to_string().to_snake_case(), rust_type);
