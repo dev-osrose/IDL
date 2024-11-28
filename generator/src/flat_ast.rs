@@ -146,16 +146,16 @@ impl Packet {
                , doc: Option<String>) -> Self {
         use ::heck::*;
         let name = type_.clone().to_lower_camel_case();
-        let (class_name, filename) = if name.starts_with("Isc") {
+        let (class_name, filename) = if name.starts_with("isc") {
             (name.clone(),
              name.clone().to_snake_case())
         } else {
-            if name.starts_with("Pakcs") {
+            if name.starts_with("pakcs") {
                 let name = "Cli".to_string() + &name[5..];
                 (name.clone(),
                  name.clone().to_snake_case())
             } else {
-                let name = "Srv".to_string() + &name[5..];
+                let name = "srv".to_string() + &name[5..];
                 (name.clone(),
                  name.clone().to_snake_case())
             }
