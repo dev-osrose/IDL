@@ -243,7 +243,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             for content in restrict.contents() {
                 if let Enumeration(en) = content {
                     self.doc(en.doc())?;
-                    cg!(self, "{} = {},", en.value(), en.id());
+                    cg!(self, "{} = {},", en.value().to_upper_camel_case(), en.id());
                 }
             }
         } else {
