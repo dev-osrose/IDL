@@ -155,7 +155,7 @@ impl Packet {
                 (name.clone(),
                  name.clone().to_snake_case())
             } else {
-                let name = "srv".to_string() + &name[5..];
+                let name = "Srv".to_string() + &name[5..];
                 (name.clone(),
                  name.clone().to_snake_case())
             }
