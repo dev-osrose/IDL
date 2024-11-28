@@ -35,60 +35,22 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::{{Encode, Decode}};"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
 
+        let mut iserialize: HashMap<String, String> = HashMap::new();
+        iserialize.insert("int8_t".to_string(), "i8".to_string());
+        iserialize.insert("uint8_t".to_string(), "u8".to_string());
+        iserialize.insert("int16_t".to_string(), "i16".to_string());
+        iserialize.insert("uint16_t".to_string(), "u16".to_string());
+        iserialize.insert("int32_t".to_string(), "i32".to_string());
+        iserialize.insert("uint32_t".to_string(), "u32".to_string());
+        iserialize.insert("int64_t".to_string(), "i64".to_string());
+        iserialize.insert("uint64_t".to_string(), "u64".to_string());
+        iserialize.insert("char".to_string(), "u8".to_string());
+        iserialize.insert("int".to_string(), "i32".to_string());
+        iserialize.insert("unsigned int".to_string(), "u32".to_string());
+        iserialize.insert("float".to_string(), "f32".to_string());
+        iserialize.insert("double".to_string(), "f64".to_string());
+        iserialize.insert("std::string".to_string(), "String".to_string());
 
-        let iserialize = packet.contents().iter().filter_map(|elem| {
-            match elem {
-                PacketContent::Element(ref e) => {
-                    let rust_type = match e.type_().as_ref() {
-                        "int8_t" => "i8",
-                        "uint8_t" => "u8",
-                        "int16_t" => "i16",
-                        "uint16_t" => "u16",
-                        "int32_t" => "i32",
-                        "uint32_t" => "u32",
-                        "int64_t" => "i64",
-                        "uint64_t" => "u64",
-                        "char" => "u8",
-                        "float" => "f32",
-                        "double" => "f64",
-                        "std::string" => "String",
-                        _ => e.type_().as_str(),
-                    };
-                    Some((e.type_().to_string(), rust_type.to_string())) // Map key and value
-                }
-                PacketContent::Simple(ref e) => {
-                    let mut rust_type = ("".to_string(), "".to_string());
-                    for content in e.contents() {
-                        rust_type = match content {
-                            SimpleTypeContent::Restriction(res) => {
-                                let rust_type = match res.base().as_ref() {
-                                    "int8_t" => "i8",
-                                    "uint8_t" => "u8",
-                                    "int16_t" => "i16",
-                                    "uint16_t" => "u16",
-                                    "int32_t" => "i32",
-                                    "uint32_t" => "u32",
-                                    "int64_t" => "i64",
-                                    "uint64_t" => "u64",
-                                    "char" => "u8",
-                                    "float" => "f32",
-                                    "double" => "f64",
-                                    "std::string" => "String",
-                                    _ => res.base().as_str(),
-                                };
-                                (res.base().clone(), rust_type.to_string())
-                            },
-                        };
-                    }
-                    Some(rust_type)
-                }
-                PacketContent::Complex(ref e) => {
-                    let rust_type = (e.name().clone(), e.name().clone());
-                    Some(rust_type)
-                }
-                _ => None,
-            }
-        }).collect::<HashMap<String, String>>(); // Collect into a HashMap
 
         for content in packet.contents() {
             use self::PacketContent::*;
@@ -148,6 +110,42 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn complex_type(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         if complex.inline() == false {
+
+            // All unions need to be outside the struct
+            match complex.content() {
+                Choice(ref c) => {
+                    for elem in c.elements() {
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, "struct {} {{", elem.name());
+                            self.indent();
+                            for e in seq.elements() {
+                                self.element(e, &iserialize)?;
+                            }
+                            self.dedent();
+                            cg!(self, "}}");
+                            cg!(self);
+                        }
+                    }
+
+                    cg!(self, "#[repr(C)]");
+                    cg!(self, r#"#[derive(Debug)]"#);
+                    cg!(self, "union {}InternalData {{", complex.name());
+                    self.indent();
+                    for elem in c.elements() {
+                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, "{}: {},", elem.name().to_snake_case(), elem.name());
+                        } else {
+                            self.element(elem, &iserialize)?;
+                        }
+                    }
+                    self.dedent();
+                    cg!(self, "}}");
+                },
+                _ => {}
+            }
+
+            cg!(self);
+            cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
             cg!(self, "struct {} {{", complex.name());
             self.indent();
             match complex.content() {
@@ -157,30 +155,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 },
                 Choice(ref c) => {
-                    cg!(self, "#[repr(C)]");
-                    cg!(self, "union Data {{");
-                    self.indent();
-                    for elem in c.elements() {
-                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
-                            cg!(self, "struct {} {{", elem.name());
-                            self.indent();
-                            for e in seq.elements() {
-                                self.element(e, &iserialize)?;
-                            }
-                            self.dedent();
-                            cg!(self, "}});");
-                        } else {
-                            self.element(elem, &iserialize)?;
-                        }
-                    }
-                    self.dedent();
-                    cg!(self, "}}");
-                    self.dedent();
+                    cg!(self, "data: {}InternalData,", complex.name());
                 },
                 Empty => {}
             }
             self.dedent();
-            cg!(self, "}};");
+            cg!(self, "}}");
             cg!(self);
         }
         Ok(())
@@ -207,7 +187,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             return Ok(());
         }
 
-        let Some(rust_type) = iserialize.get(elem.type_().trim()) else { warn!(r#"Type "{}" not found"#, elem.type_()); return Ok(()) };
+        let trimmed_type = elem.type_().trim().to_string();
+        let rust_type = iserialize.get(elem.type_().trim()).unwrap_or_else(|| {
+            debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+            &trimmed_type
+        });
 
         let (type_, bits) = if let Some(ref o) = elem.occurs() {
             use ::flat_ast::Occurs::*;
@@ -224,7 +208,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             (type_, "".to_string())
         } else {
             let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
-            (rust_type.to_owned(), bits)
+            (rust_type.to_owned().to_string(), bits)
         };
         // let default = match elem.init() {
         //     self::ElementInitValue::Default(d) => " = ".to_string() + d,
@@ -243,8 +227,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             _ => false
         }).is_some();
         self.doc(restrict.doc())?;
-        let base = restrict.base().trim();
-        let Some(rust_type) = iserialize.get(base) else { warn!(r#"Type "{}" not found"#, base); return Ok(()) };
+        let base = restrict.base().trim().to_string();
+        let rust_type = iserialize.get(restrict.base().trim()).unwrap_or_else(|| {
+            debug!(r#"Type "{}" not found, outputting anyway"#, base);
+            &base
+        });
 
         if is_enum {
             cg!(self, r#"#[repr({})]"#, rust_type);
