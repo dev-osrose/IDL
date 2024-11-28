@@ -154,11 +154,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 },
                 Choice(ref c) => {
+                    cg!(self, "#[repr(C)]");
                     cg!(self, "union Data {{");
                     self.indent();
                     for elem in c.elements() {
                         if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
-                            cg!(self, "struct {{");
+                            cg!(self, "struct {} {{", elem.name());
                             self.indent();
                             for e in seq.elements() {
                                 self.element(e, &iserialize)?;
@@ -220,7 +221,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             self::ElementInitValue::Default(d) => " = ".to_string() + d,
             _ => "".to_string()
         };
-        cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
+        // cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
+        cg!(self, "{}: {}{},", elem.name(), type_, bits);
         Ok(())
     }
 
