@@ -20,7 +20,7 @@ jobs:
     - name: Prepare Release
       run: tar --transform 's/.*\///g' -zcvf ${{github.workspace}}/${{ runner.os }}-${{ env.PROCESSOR_ARCH }}-packet_generator.tar.gz target/*/packet_generator
     - name: Upload linux build
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: linux_build
         path: ${{github.workspace}}/${{ runner.os }}-${{ env.PROCESSOR_ARCH }}-packet_generator.tar.gz
@@ -37,7 +37,7 @@ jobs:
         copy-item ${{github.workspace}}\target\release\packet_generator.exe -destination ${{github.workspace}}\packet_generator.exe
         7z a ${{github.workspace}}/windows-amd64-packet_generator.zip ${{github.workspace}}\packet_generator.exe
     - name: Upload windows build
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: windows_build
         path: ${{github.workspace}}/windows-amd64-packet_generator.zip
@@ -48,11 +48,11 @@ jobs:
     if: github.ref == 'refs/heads/master'
     steps:
     - name: Download linux build
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: linux_build
     - name: Download windows build
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: windows_build
     - name: Release
