@@ -221,8 +221,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         //     self::ElementInitValue::Default(d) => " = ".to_string() + d,
         //     _ => "".to_string()
         // };
+        let name = rename_if_reserved(elem.name());
         // cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
-        cg!(self, "{}: {}{},", elem.name(), type_, bits);
+        cg!(self, "{}: {}{},", name, type_, bits);
         Ok(())
     }
 
@@ -257,3 +258,21 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 }
+
+fn rename_if_reserved(name: &str) -> String {
+    let reserved_keywords = [
+        "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false",
+        "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
+        "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
+        "true", "type", "unsafe", "use", "where", "while", "async", "await", "dyn",
+        "abstract", "become", "box", "do", "final", "macro", "override", "priv",
+        "try", "typeof", "unsized", "virtual", "yield",
+    ];
+
+    if reserved_keywords.contains(&name) {
+        format!("{}_", name) // Append a suffix to avoid conflicts
+    } else {
+        name.to_string()
+    }
+}
+
