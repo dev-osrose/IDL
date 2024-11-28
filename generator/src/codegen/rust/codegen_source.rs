@@ -34,6 +34,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "/* Generated with IDL v{} */\n", version);
         cg!(self, r#"use bincode::{{Encode, Decode}};"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
+
+        for content in packet.contents() {
+            use self::PacketContent::*;
+            match content {
+                Include(ref inc, system) => {
+                    cg!(self, r#"use {};"#, inc);
+                },
+                _ => {}
+            };
+        }
         cg!(self);
 
         let iserialize = packet.contents().iter().filter_map(|elem| {
@@ -82,7 +92,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                     Some(rust_type)
                 }
-                // TODO Map complex type
+                PacketContent::Complex(ref e) => {
+                    let rust_type = (e.name().clone(), e.name().clone());
+                    Some(rust_type)
+                }
                 _ => None,
             }
         }).collect::<HashMap<String, String>>(); // Collect into a HashMap
@@ -106,7 +119,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self);
 
         cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
-        cg!(self, "pub struct {} {{", packet.class_name());
+        cg!(self, "pub struct {} {{", packet.class_name().to_upper_camel_case());
         self.indent();
         for content in packet.contents() {
             use self::PacketContent::*;
@@ -119,7 +132,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "}}");
 
         cg!(self);
-        cg!(self, "impl PacketPayload for {} {{}}", packet.class_name());
+        cg!(self, "impl PacketPayload for {} {{}}", packet.class_name().to_upper_camel_case());
 
 
         Ok(())
@@ -270,9 +283,9 @@ fn rename_if_reserved(name: &str) -> String {
     ];
 
     if reserved_keywords.contains(&name) {
-        format!("{}_", name) // Append a suffix to avoid conflicts
+        format!("{}_", name.to_snake_case()) // Append a suffix to avoid conflicts
     } else {
-        name.to_string()
+        name.to_string().to_snake_case()
     }
 }
 
