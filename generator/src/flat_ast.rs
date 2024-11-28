@@ -31,6 +31,7 @@ pub enum ComplexTypeContent {
     Empty
 }
 
+use heck::ToUpperCamelCase;
 pub use ::schema::ast::Occurs;
 
 #[derive(Debug, Clone)]
@@ -145,12 +146,12 @@ impl Packet {
     pub fn new(type_: String
                , doc: Option<String>) -> Self {
         use ::heck::*;
-        let name = type_.clone().to_lower_camel_case();
-        let (class_name, filename) = if name.starts_with("isc") {
+        let name = type_.clone().to_upper_camel_case();
+        let (class_name, filename) = if name.starts_with("Isc") {
             (name.clone(),
              name.clone().to_snake_case())
         } else {
-            if name.starts_with("pakcs") {
+            if name.starts_with("Pakcs") {
                 let name = "Cli".to_string() + &name[5..];
                 (name.clone(),
                  name.clone().to_snake_case())
@@ -439,7 +440,7 @@ impl Bitset {
 impl SimpleType {
     pub fn new(name: String, doc: Option<String>) -> Self {
         use heck::ToLowerCamelCase;
-        SimpleType{ name: name.to_lower_camel_case(), contents: Vec::new(), doc }
+        SimpleType{ name: name.to_upper_camel_case(), contents: Vec::new(), doc }
     }
 
     pub fn add_content(&mut self, content: SimpleTypeContent) {
