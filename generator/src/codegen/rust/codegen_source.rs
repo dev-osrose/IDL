@@ -2,7 +2,6 @@ use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
 use std::collections::HashMap;
-use schema::ast::Occurs::Unbounded;
 
 pub (crate) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>,
