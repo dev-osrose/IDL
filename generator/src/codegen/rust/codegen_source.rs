@@ -129,7 +129,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 _ => {}
             };
         }
-        cg!(self, "Ok({} {{", packet.class_name().to_upper_camel_case());
+        cg!(self, "Ok(Self {{");
+        self.indent();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
@@ -139,6 +140,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 _ => {}
             };
         }
+        self.dedent();
         cg!(self, "}})");
         self.dedent();
         cg!(self, "}}");
@@ -433,7 +435,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
                 cg!(self, "{}", maxValueCheck);
             }
-            cg!(self, "Ok({} {{ {} }})", name.to_upper_camel_case(), data);
+            cg!(self, "Ok(Self {{ {} }})", data);
         }
         self.dedent();
         cg!(self, "}}");
