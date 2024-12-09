@@ -37,6 +37,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::de::read::Reader;"#);
         cg!(self, r#"use bincode::enc::write::Writer;"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
+        cg!(self, r#"use crate::handlers::null_string::NullTerminatedString;"#);
 
         let mut iserialize: HashMap<String, String> = HashMap::new();
         iserialize.insert("int8_t".to_string(), "i8".to_string());
@@ -52,7 +53,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         iserialize.insert("unsigned int".to_string(), "u32".to_string());
         iserialize.insert("float".to_string(), "f32".to_string());
         iserialize.insert("double".to_string(), "f64".to_string());
-        iserialize.insert("std::string".to_string(), "String".to_string());
+        iserialize.insert("std::string".to_string(), "NullTerminatedString".to_string());
 
 
         for content in packet.contents() {
@@ -289,10 +290,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }).is_some();
         self.doc(restrict.doc())?;
         let base = restrict.base().trim().to_string();
-        let rust_type = iserialize.get(restrict.base().trim()).unwrap_or_else(|| {
+        let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
             debug!(r#"Type "{}" not found, outputting anyway"#, base);
-            &base
+            base.clone()
         });
+
+        if "NullTerminatedString" == rust_type {
+            rust_type = "String".to_string();
+        }
 
         if is_enum {
             cg!(self, r#"#[repr({})]"#, rust_type);
@@ -328,10 +333,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             _ => false
         }).is_some();
         let trimmed_type = restrict.base().trim().to_string();
-        let rust_type = iserialize.get(restrict.base().trim()).unwrap_or_else(|| {
+        let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
             debug!(r#"Type "{}" not found, outputting anyway"#, restrict.base());
-            &trimmed_type
+            trimmed_type.clone()
         });
+
+        if "NullTerminatedString" == rust_type {
+            rust_type = "String".to_string();
+        }
 
         cg!(self, "impl Encode for {} {{", name.to_upper_camel_case());
         self.indent();
@@ -380,10 +389,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             _ => false
         }).is_some();
         let trimmed_type = restrict.base().trim().to_string();
-        let rust_type = iserialize.get(restrict.base().trim()).unwrap_or_else(|| {
+        let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
             debug!(r#"Type "{}" not found, outputting anyway"#, restrict.base());
-            &trimmed_type
+            trimmed_type.clone()
         });
+
+        if "NullTerminatedString" == rust_type {
+            rust_type = "String".to_string();
+        }
 
         cg!(self, "impl Decode for {} {{", name.to_upper_camel_case());
         self.indent();
