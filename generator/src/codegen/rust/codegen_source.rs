@@ -125,7 +125,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
                         &trimmed_type
                     });
-                    let (type_, bits) = if let Some(ref o) = elem.occurs() {
+                    let (type_, _bits) = if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
                         let type_ = match o {
                             Unbounded => format!("Vec"),
@@ -211,7 +211,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "union {}InternalData {{", complex.name());
                     self.indent();
                     for elem in c.elements() {
-                        if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                        if let Some(ref _seq) = c.inline_seqs().get(elem.name()) {
                             cg!(self, "{}: {},", elem.name().to_snake_case(), elem.name());
                         } else {
                             self.element(elem, &iserialize)?;
@@ -233,7 +233,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         self.element(elem, &iserialize)?;
                     }
                 },
-                Choice(ref c) => {
+                Choice(ref _c) => {
                     cg!(self, "data: {}InternalData,", complex.name());
                 },
                 Empty => {}
@@ -241,14 +241,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             self.dedent();
             cg!(self, "}}");
             cg!(self);
-            self.complex_encode(complex, iserialize);
+            let _ = self.complex_encode(complex, iserialize);
             cg!(self);
-            self.complex_decode(complex, iserialize);
+            let _ = self.complex_decode(complex, iserialize);
         }
         Ok(())
     }
 
-    fn complex_encode(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
+    fn complex_encode(&mut self, complex: &ComplexType, _iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         cg!(self, "impl Encode for {} {{", complex.name());
         self.indent();
@@ -262,7 +262,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "self.{}.encode(encoder)?;", data);
                 }
             },
-            Choice(ref c) => {
+            Choice(ref _c) => {
                 // TODO: Figure out how to make this work
             },
             Empty => {}
@@ -298,7 +298,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     output_list.push(name);
                 }
             },
-            Choice(ref c) => {
+            Choice(ref _c) => {
                 // TODO: Figure out how to make this work
             },
             Empty => {}
@@ -418,20 +418,20 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn restrict_encode(&mut self, restrict: &Restriction, name: &str, iserialize: &HashMap<String, String>) -> Result<()> {
+    fn restrict_encode(&mut self, restrict: &Restriction, name: &str, _iserialize: &HashMap<String, String>) -> Result<()> {
         let is_enum = restrict.contents().iter().find(|content| match content {
             Enumeration(_) => true,
             _ => false
         }).is_some();
-        let trimmed_type = restrict.base().trim().to_string();
-        let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
-            debug!(r#"Type "{}" not found, outputting anyway"#, restrict.base());
-            trimmed_type.clone()
-        });
-
-        if "NullTerminatedString" == rust_type {
-            rust_type = "String".to_string();
-        }
+        // let trimmed_type = restrict.base().trim().to_string();
+        // let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+        //     debug!(r#"Type "{}" not found, outputting anyway"#, restrict.base());
+        //     trimmed_type.clone()
+        // });
+        //
+        // if "NullTerminatedString" == rust_type {
+        //     rust_type = "String".to_string();
+        // }
 
         cg!(self, "impl Encode for {} {{", name.to_upper_camel_case());
         self.indent();
@@ -456,10 +456,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         cg!(self, "encoder.writer().write(&vec![0; fixed_length - bytes.len()])?;");
                         cg!(self, "Ok(())");
                     },
-                    MinValue(v) => {
+                    MinValue(_v) => {
 
                     },
-                    MaxValue(v) => {
+                    MaxValue(_v) => {
 
                     },
                     _ => panic!("enumeration in restrict when there shouldn't be one")
@@ -508,18 +508,18 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         } else {
             let data = name.to_string().to_snake_case();
             let mut fixed_length = 64;
-            let mut minValueCheck = String::new();
-            let mut maxValueCheck = String::new();
+            let mut min_value_check = String::new();
+            let mut max_value_check = String::new();
             for content in restrict.contents() {
                 match content {
                     Length(l) => {
                         fixed_length = *l;
                     },
                     MinValue(v) => {
-                        minValueCheck = format!("if {} < {} {{Err(bincode::error::DecodeError::OtherString(format!(\"Invalid value for {}: {{}} < {{}}\", {}, {})))}}", data, v, data, data, v).into();
+                        min_value_check = format!("if {} < {} {{Err(bincode::error::DecodeError::OtherString(format!(\"Invalid value for {}: {{}} < {{}}\", {}, {})))}}", data, v, data, data, v).into();
                     },
                     MaxValue(v) => {
-                        maxValueCheck = format!("if {} > {} {{Err(bincode::error::DecodeError::OtherString(format!(\"Invalid value for {}: {{}} > {{}}\", {}, {})))}}", data, v, data, data, v).into();
+                        max_value_check = format!("if {} > {} {{Err(bincode::error::DecodeError::OtherString(format!(\"Invalid value for {}: {{}} > {{}}\", {}, {})))}}", data, v, data, data, v).into();
                     },
                     _ => panic!("enumeration in restrict when there shouldn't be one")
                 }
@@ -535,9 +535,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             } else {
                 cg!(self, "let {} = {}::decode(buffer)?;", data, rust_type);
 
-                cg!(self, "{}", minValueCheck);
+                cg!(self, "{}", min_value_check);
 
-                cg!(self, "{}", maxValueCheck);
+                cg!(self, "{}", max_value_check);
             }
             cg!(self, "Ok(Self {{ {} }})", data);
         }
