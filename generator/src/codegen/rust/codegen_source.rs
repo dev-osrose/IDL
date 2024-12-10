@@ -125,7 +125,25 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
                         &trimmed_type
                     });
-                    cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type);
+                    let (type_, bits) = if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        let type_ = match o {
+                            Unbounded => format!("Vec"),
+                            Num(n) => {
+                                // TODO: Check to see if this is actually needed?
+                                if n.parse::<usize>().is_ok() {
+                                    format!("[{}; {}]", rust_type, n)
+                                } else {
+                                    format!("[{}; ({} as usize)]", rust_type, n)
+                                }
+                            }
+                        };
+                        (type_, "".to_string())
+                    } else {
+                        let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
+                        (rust_type.to_owned().to_string(), bits)
+                    };
+                    cg!(self, "let {} = {}::decode(decoder)?;", name, type_);
                 },
                 _ => {}
             };
@@ -172,7 +190,6 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     fn complex_type(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         if complex.inline() == false {
-
             // All unions need to be outside the struct
             match complex.content() {
                 Choice(ref c) => {
@@ -207,8 +224,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             }
 
             cg!(self);
-            cg!(self, r#"#[derive(Debug, Encode, Decode)]"#);
-            cg!(self, "struct {} {{", complex.name());
+            cg!(self, r#"#[derive(Debug)]"#);
+            cg!(self, "pub struct {} {{", complex.name());
             self.indent();
             match complex.content() {
                 Seq(ref s) => {
@@ -224,9 +241,83 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             self.dedent();
             cg!(self, "}}");
             cg!(self);
+            self.complex_encode(complex, iserialize);
+            cg!(self);
+            self.complex_decode(complex, iserialize);
         }
         Ok(())
     }
+
+    fn complex_encode(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
+        use ::flat_ast::ComplexTypeContent::*;
+        cg!(self, "impl Encode for {} {{", complex.name());
+        self.indent();
+        cg!(self, "fn encode<E: Encoder>(&self, encoder: &mut E) -> std::result::Result<(), bincode::error::EncodeError> {{");
+        self.indent();
+
+        match complex.content() {
+            Seq(ref s) => {
+                for elem in s.elements() {
+                    let data = elem.name().to_string().to_snake_case();
+                    cg!(self, "self.{}.encode(encoder)?;", data);
+                }
+            },
+            Choice(ref c) => {
+                // TODO: Figure out how to make this work
+            },
+            Empty => {}
+        }
+        cg!(self, "Ok(())");
+
+        self.dedent();
+        cg!(self, "}}");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn complex_decode(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
+        use ::flat_ast::ComplexTypeContent::*;
+        cg!(self, "impl Decode for {} {{", complex.name().to_upper_camel_case());
+        self.indent();
+        cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
+        self.indent();
+
+        let mut output_list = Vec::new();
+        match complex.content() {
+            Seq(ref s) => {
+                for elem in s.elements() {
+                    let name = elem.name().to_string().to_snake_case();
+                    let trimmed_type = elem.type_().trim().to_string();
+                    let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                        debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+                        trimmed_type.clone()
+                    });
+
+                    cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type);
+                    output_list.push(name);
+                }
+            },
+            Choice(ref c) => {
+                // TODO: Figure out how to make this work
+            },
+            Empty => {}
+        }
+        cg!(self, "Ok(Self {{");
+        self.indent();
+        for name in &output_list {
+            cg!(self, "{},", name);
+        }
+        self.dedent();
+        cg!(self, "}})");
+
+        self.dedent();
+        cg!(self, "}}");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
 
     fn simple_type(&mut self, simple: &SimpleType, iserialize: &HashMap<String, String>) -> Result<()> {
         cg!(self);
