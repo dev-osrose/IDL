@@ -36,6 +36,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::{{Encode, Decode, enc::Encoder, de::Decoder, error::DecodeError}};"#);
         cg!(self, r#"use bincode::de::read::Reader;"#);
         cg!(self, r#"use bincode::enc::write::Writer;"#);
+        cg!(self, r#"use crate::enums::*;"#);
+        cg!(self, r#"use crate::types::*;"#);
+        cg!(self, r#"use crate::dataconsts::*;"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
         cg!(self, r#"use crate::handlers::null_string::NullTerminatedString;"#);
 
@@ -99,7 +102,31 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             match content {
                 Element(ref elem) => {
                     let name = rename_if_reserved(elem.name());
-                    cg!(self, "self.{}.encode(encoder)?;", name);
+                    let trimmed_type = elem.type_().trim().to_string();
+                    let mut is_rust_native = true;
+                    let rust_type = iserialize.get(elem.type_().trim()).unwrap_or_else(|| {
+                        debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+                        is_rust_native = false;
+                        &trimmed_type
+                    });
+
+                    if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => {
+                                cg!(self, "self.{}.encode(encoder)?;", name);
+                            }
+                            Num(n) => {
+                                cg!(self, "for value in &self.{} {{", name);
+                                self.indent();
+                                cg!(self, "value.encode(encoder)?;");
+                                self.dedent();
+                                cg!(self, "}}");
+                            }
+                        };
+                    } else {
+                        cg!(self, "self.{}.encode(encoder)?;", name);
+                    }
                 },
                 _ => {}
             };
@@ -121,46 +148,64 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 Element(ref elem) => {
                     let name = rename_if_reserved(elem.name());
                     let trimmed_type = elem.type_().trim().to_string();
+                    let mut is_rust_native = true;
                     let rust_type = iserialize.get(elem.type_().trim()).unwrap_or_else(|| {
                         debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+                        is_rust_native = false;
                         &trimmed_type
                     });
-                    let (type_, _bits) = if let Some(ref o) = elem.occurs() {
+                    if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
-                        let type_ = match o {
-                            Unbounded => format!("Vec"),
+                        match o {
+                            Unbounded => {
+                                cg!(self, "let {} = Vec::decode(decoder)?;", name);
+                            }
                             Num(n) => {
-                                // TODO: Check to see if this is actually needed?
-                                if n.parse::<usize>().is_ok() {
-                                    format!("[{}; {}]", rust_type, n)
+                                let mut type_prefix = "0";
+                                if "String" == rust_type {
+                                    type_prefix = "";
+                                }
+
+                                if false == is_rust_native {
+                                    cg!(self, "let mut {} = Vec::with_capacity({} as usize);", name, n);
+                                    cg!(self, "for _ in 0..{} as usize {{", n);
+                                    self.indent();
+                                    cg!(self, "{}.push({}::decode(decoder)?);", name, rust_type);
+                                    self.dedent();
+                                    cg!(self, "}}");
                                 } else {
-                                    format!("[{}; ({} as usize)]", rust_type, n)
+                                    if n.parse::<usize>().is_ok() {
+                                        cg!(self, "let mut {} = [{}{}; {}];", name, type_prefix, rust_type, n);
+                                    } else {
+                                        cg!(self, "let mut {} = [{}{}; ({} as usize)];", name, type_prefix, rust_type, n);
+                                    }
+                                    cg!(self, "for value in &mut {} {{", name);
+                                    self.indent();
+                                    cg!(self, "*value = {}::decode(decoder)?;", rust_type);
+                                    self.dedent();
+                                    cg!(self, "}}");
                                 }
                             }
                         };
-                        (type_, "".to_string())
                     } else {
-                        let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
-                        (rust_type.to_owned().to_string(), bits)
+                        cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type.to_owned().to_string());
                     };
-                    cg!(self, "let {} = {}::decode(decoder)?;", name, type_);
                 },
                 _ => {}
             };
         }
-        cg!(self, "Ok(Self {{");
-        self.indent();
+        let mut output_list = Vec::new();
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
                 Element(ref elem) => {
-                    cg!(self, "{},", rename_if_reserved(elem.name()));
+                    output_list.push(rename_if_reserved(elem.name()));
                 },
                 _ => {}
             };
         }
-        self.dedent();
-        cg!(self, "}})");
+
+        cg!(self, "Ok(Self {{ {} }})", output_list.join(", "));
         self.dedent();
         cg!(self, "}}");
         self.dedent();
@@ -187,6 +232,26 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
+    fn get_bitfield_type(bit_count: usize) -> &'static str {
+        match bit_count {
+            1..=8 => "u8",
+            9..=16 => "u16",
+            17..=32 => "u32",
+            33..=64 => "u64",
+            _ => panic!("Unsupported bit count: {}", bit_count),
+        }
+    }
+
+    fn get_size_of_type(type_name: &str) -> usize {
+        match type_name {
+            "u8" => std::mem::size_of::<u8>(),
+            "u16" => std::mem::size_of::<u16>(),
+            "u32" => std::mem::size_of::<u32>(),
+            "u64" => std::mem::size_of::<u64>(),
+            _ => panic!("Unsupported type: {}", type_name),
+        }
+    }
+
     fn complex_type(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         if complex.inline() == false {
@@ -195,6 +260,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 Choice(ref c) => {
                     for elem in c.elements() {
                         if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, r#"#[derive(Debug)]"#);
                             cg!(self, "struct {} {{", elem.name());
                             self.indent();
                             for e in seq.elements() {
@@ -202,23 +268,92 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             }
                             self.dedent();
                             cg!(self, "}}");
-                            cg!(self);
-                        }
-                    }
 
-                    cg!(self, "#[repr(C)]");
-                    cg!(self, r#"#[derive(Debug)]"#);
-                    cg!(self, "union {}InternalData {{", complex.name());
-                    self.indent();
-                    for elem in c.elements() {
-                        if let Some(ref _seq) = c.inline_seqs().get(elem.name()) {
-                            cg!(self, "{}: {},", elem.name().to_snake_case(), elem.name());
-                        } else {
-                            self.element(elem, &iserialize)?;
+                            // Get the max size of the union
+                            let mut max_bit_size = 0;
+
+                            for elem2 in c.elements() {
+                                if let Some(ref seq2) = c.inline_seqs().get(elem2.name()) {
+                                    // Do nothing
+                                } else {
+                                    let trimmed_type = elem2.type_().trim().to_string();
+                                    let rust_type = iserialize.get(elem2.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                                        warn!(r#"Type "{}" not found, outputting anyway"#, elem2.type_());
+                                        trimmed_type.clone()
+                                    });
+                                    max_bit_size = Self::get_size_of_type(&rust_type) as u32 * 8;
+                                }
+                            }
+                            let rust_type = Self::get_bitfield_type(max_bit_size as usize);
+
+                            cg!(self);
+                            cg!(self, "impl {} {{", elem.name());
+                            self.indent();
+                            cg!(self, "fn encode_bitfield(value: {}, size: {}, offset: &mut {}) -> {} {{", rust_type, rust_type, rust_type, rust_type);
+                            self.indent();
+                            cg!(self, "let encoded = (value & ((1 << size) - 1)) << *offset;");
+                            cg!(self, "*offset += size; // Update offset for the next field");
+                            cg!(self, "encoded");
+                            self.dedent();
+                            cg!(self, "}}");
+                            cg!(self);
+                            cg!(self, "fn decode_bitfield(encoded: {}, size: {}, offset: &mut {}) -> {} {{", rust_type, rust_type, rust_type, rust_type);
+                            self.indent();
+                            cg!(self, "let value = (encoded >> *offset) & ((1 << size) - 1);");
+                            cg!(self, "*offset += size; // Update offset for the next field");
+                            cg!(self, "value");
+                            self.dedent();
+                            cg!(self, "}}");
+                            cg!(self);
+                            cg!(self, "pub fn encode_data(&self) -> {} {{", rust_type);
+                            self.indent();
+                            cg!(self, "let mut offset = 0;");
+                            let mut variable_names = Vec::new();
+                            for e in seq.elements() {
+                                let name = rename_if_reserved(e.name());
+                                let bits = e.bits().map_or_else(|| "".to_string(), |b| format!("{}", b));
+                                cg!(self, "let {}_bits = Self::encode_bitfield(self.{}, {}, &mut offset);", e.name().to_snake_case(), name, bits);
+                                variable_names.push(format!("{}_bits", e.name().to_snake_case()));
+                            }
+                            cg!(self, "{}", variable_names.join(" | "));
+                            self.dedent();
+                            cg!(self, "}}");
+                            self.dedent();
+                            cg!(self, "}}");
+                            cg!(self);
+
+                            cg!(self, "impl Encode for {} {{", elem.name());
+                            self.indent();
+                            cg!(self, "fn encode<E: Encoder>(&self, encoder: &mut E) -> std::result::Result<(), bincode::error::EncodeError> {{");
+                            self.indent();
+                            cg!(self, "self.encode_data().encode(encoder)?;");
+                            cg!(self, "Ok(())");
+                            self.dedent();
+                            cg!(self, "}}");
+                            self.dedent();
+                            cg!(self, "}}");
+
+                            cg!(self);
+                            cg!(self, "impl Decode for {} {{", elem.name());
+                            self.indent();
+                            cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
+                            self.indent();
+                            cg!(self, "let bitfield = {}::decode(decoder)?;", rust_type);
+                            cg!(self, "let mut offset = 0;");
+                            let mut variable_names = Vec::new();
+                            for e in seq.elements() {
+                                let name = rename_if_reserved(e.name());
+                                let bits = e.bits().map_or_else(|| "".to_string(), |b| format!("{}", b));
+                                cg!(self, "let {} = Self::decode_bitfield(bitfield, {}, &mut offset);", name, bits);
+                                variable_names.push(format!("{}", name));
+                            }
+                            cg!(self, "Ok(Self {{ {} }})", variable_names.join(", "));
+                            self.dedent();
+                            cg!(self, "}}");
+                            self.dedent();
+                            cg!(self, "}}");
                         }
                     }
-                    self.dedent();
-                    cg!(self, "}}");
                 },
                 _ => {}
             }
@@ -233,8 +368,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         self.element(elem, &iserialize)?;
                     }
                 },
-                Choice(ref _c) => {
-                    cg!(self, "data: {}InternalData,", complex.name());
+                Choice(ref c) => {
+                    for elem in c.elements() {
+                        if let Some(ref _seq) = c.inline_seqs().get(elem.name()) {
+                            cg!(self, "{}: {},", elem.name().to_snake_case(), elem.name());
+                        } else {
+                            self.element(elem, &iserialize)?;
+                        }
+                    }
                 },
                 Empty => {}
             }
@@ -262,8 +403,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "self.{}.encode(encoder)?;", data);
                 }
             },
-            Choice(ref _c) => {
-                // TODO: Figure out how to make this work
+            Choice(ref c) => {
+                for elem in c.elements() {
+                    let data = elem.name().to_string().to_snake_case();
+                    cg!(self, "self.{}.encode(encoder)?;", data);
+                }
             },
             Empty => {}
         }
@@ -289,6 +433,56 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 for elem in s.elements() {
                     let name = elem.name().to_string().to_snake_case();
                     let trimmed_type = elem.type_().trim().to_string();
+                    let mut is_rust_native = true;
+                    let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                        debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+                        is_rust_native = false;
+                        trimmed_type.clone()
+                    });
+
+                    if let Some(ref o) = elem.occurs() {
+                        use ::flat_ast::Occurs::*;
+                        match o {
+                            Unbounded => {
+                                cg!(self, "let {} = Vec::decode(decoder)?;", name);
+                            }
+                            Num(n) => {
+                                let mut type_prefix = "0";
+                                if "String" == rust_type {
+                                    type_prefix = "";
+                                }
+
+                                if false == is_rust_native {
+                                    cg!(self, "let mut {} = Vec::with_capacity({} as usize);", name, n);
+                                    cg!(self, "for _ in 0..{} as usize {{", n);
+                                    self.indent();
+                                    cg!(self, "{}.push({}::decode(decoder)?);", name, rust_type);
+                                    self.dedent();
+                                    cg!(self, "}}");
+                                } else {
+                                    if n.parse::<usize>().is_ok() {
+                                        cg!(self, "let mut {} = [{}{}; {}];", name, type_prefix, rust_type, n);
+                                    } else {
+                                        cg!(self, "let mut {} = [{}{}; ({} as usize)];", name, type_prefix, rust_type, n);
+                                    }
+                                    cg!(self, "for value in &mut {} {{", name);
+                                    self.indent();
+                                    cg!(self, "*value = {}::decode(decoder)?;", rust_type);
+                                    self.dedent();
+                                    cg!(self, "}}");
+                                }
+                            }
+                        };
+                    } else {
+                        cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type);
+                    }
+                    output_list.push(name);
+                }
+            },
+            Choice(ref c) => {
+                for elem in c.elements() {
+                    let name = elem.name().to_string().to_snake_case();
+                    let trimmed_type = elem.type_().trim().to_string();
                     let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
                         debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
                         trimmed_type.clone()
@@ -298,18 +492,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     output_list.push(name);
                 }
             },
-            Choice(ref _c) => {
-                // TODO: Figure out how to make this work
-            },
             Empty => {}
         }
-        cg!(self, "Ok(Self {{");
-        self.indent();
-        for name in &output_list {
-            cg!(self, "{},", name);
-        }
-        self.dedent();
-        cg!(self, "}})");
+        cg!(self, "Ok(Self {{ {} }})", output_list.join(", "));
 
         self.dedent();
         cg!(self, "}}");
@@ -341,8 +526,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
 
         let trimmed_type = elem.type_().trim().to_string();
+        let mut is_rust_native = true;
         let rust_type = iserialize.get(elem.type_().trim()).unwrap_or_else(|| {
             debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
+            is_rust_native = false;
             &trimmed_type
         });
 
@@ -351,16 +538,20 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             let type_ = match o {
                 Unbounded => format!("Vec<{}>", rust_type),
                 Num(n) => {
-                    if n.parse::<usize>().is_ok() {
-                        format!("[{}; {}]", rust_type, n)
+                    if false == is_rust_native {
+                        format!("Vec<{}>", rust_type)
                     } else {
-                        format!("[{}; ({} as usize)]", rust_type, n)
+                        if n.parse::<usize>().is_ok() {
+                            format!("[{}; {}]", rust_type, n)
+                        } else {
+                            format!("[{}; ({} as usize)]", rust_type, n)
+                        }
                     }
                 }
             };
             (type_, "".to_string())
         } else {
-            let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!(" : {}", b));
+            let bits = elem.bits().map_or_else(|| "".to_string(), |b| format!("// {} bits", b));
             (rust_type.to_owned().to_string(), bits)
         };
         // let default = match elem.init() {
@@ -369,7 +560,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         // };
         let name = rename_if_reserved(elem.name());
         // cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
-        cg!(self, "pub(crate) {}: {}{},", name, type_, bits);
+        cg!(self, "pub(crate) {}: {}, {}", name, type_, bits);
         Ok(())
     }
 
@@ -423,15 +614,6 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             Enumeration(_) => true,
             _ => false
         }).is_some();
-        // let trimmed_type = restrict.base().trim().to_string();
-        // let mut rust_type = iserialize.get(restrict.base().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
-        //     debug!(r#"Type "{}" not found, outputting anyway"#, restrict.base());
-        //     trimmed_type.clone()
-        // });
-        //
-        // if "NullTerminatedString" == rust_type {
-        //     rust_type = "String".to_string();
-        // }
 
         cg!(self, "impl Encode for {} {{", name.to_upper_camel_case());
         self.indent();
