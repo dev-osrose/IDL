@@ -36,11 +36,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::{{Encode, Decode, enc::Encoder, de::Decoder, error::DecodeError}};"#);
         cg!(self, r#"use bincode::de::read::Reader;"#);
         cg!(self, r#"use bincode::enc::write::Writer;"#);
+        cg!(self, r#"use utils::null_string::NullTerminatedString;"#);
         cg!(self, r#"use crate::enums::*;"#);
         cg!(self, r#"use crate::types::*;"#);
         cg!(self, r#"use crate::dataconsts::*;"#);
         cg!(self, r#"use crate::packet::PacketPayload;"#);
-        cg!(self, r#"use crate::handlers::null_string::NullTerminatedString;"#);
 
         let mut iserialize: HashMap<String, String> = HashMap::new();
         iserialize.insert("int8_t".to_string(), "i8".to_string());
