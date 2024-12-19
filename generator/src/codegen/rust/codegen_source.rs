@@ -32,7 +32,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
         let version = self.version.clone();
-        cg!(self, "/* Generated with IDL v{} */\n", version);
+        cg!(self, "/* This file is @generated with IDL v{} */\n", version);
         cg!(self, r#"use bincode::{{Encode, Decode, enc::Encoder, de::Decoder, error::DecodeError}};"#);
         cg!(self, r#"use bincode::de::read::Reader;"#);
         cg!(self, r#"use bincode::enc::write::Writer;"#);
