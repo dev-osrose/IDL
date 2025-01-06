@@ -167,10 +167,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 }
 
                                 if false == is_rust_native {
-                                    cg!(self, "let mut {} = Vec::with_capacity({} as usize);", name, n);
-                                    cg!(self, "for _ in 0..{} as usize {{", n);
+                                    type_prefix = "";
+                                    if n.parse::<usize>().is_ok() {
+                                        cg!(self, "let mut {}: [{}{}; {}] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
+                                    } else {
+                                        cg!(self, "let mut {}: [{}{}; ({} as usize)] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
+                                    }
+
+                                    cg!(self, "for index in 0..{} as usize {{", n);
                                     self.indent();
-                                    cg!(self, "{}.push({}::decode(decoder)?);", name, rust_type);
+                                    cg!(self, "{}[index] = {}::decode(decoder)?;", name, rust_type);
                                     self.dedent();
                                     cg!(self, "}}");
                                 } else {
@@ -359,7 +365,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             }
 
             cg!(self);
-            cg!(self, r#"#[derive(Debug)]"#);
+            cg!(self, r#"#[derive(Debug, Clone, Default)]"#);
             cg!(self, "pub struct {} {{", complex.name());
             self.indent();
             match complex.content() {
@@ -399,14 +405,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         match complex.content() {
             Seq(ref s) => {
                 for elem in s.elements() {
-                    let data = elem.name().to_string().to_snake_case();
-                    cg!(self, "self.{}.encode(encoder)?;", data);
+                    let name = rename_if_reserved(elem.name());
+                    cg!(self, "self.{}.encode(encoder)?;", name);
                 }
             },
             Choice(ref c) => {
                 for elem in c.elements() {
-                    let data = elem.name().to_string().to_snake_case();
-                    cg!(self, "self.{}.encode(encoder)?;", data);
+                    let name = rename_if_reserved(elem.name());
+                    cg!(self, "self.{}.encode(encoder)?;", name);
                 }
             },
             Empty => {}
@@ -431,7 +437,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         match complex.content() {
             Seq(ref s) => {
                 for elem in s.elements() {
-                    let name = elem.name().to_string().to_snake_case();
+                    let name = rename_if_reserved(elem.name());
                     let trimmed_type = elem.type_().trim().to_string();
                     let mut is_rust_native = true;
                     let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
@@ -453,10 +459,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 }
 
                                 if false == is_rust_native {
-                                    cg!(self, "let mut {} = Vec::with_capacity({} as usize);", name, n);
-                                    cg!(self, "for _ in 0..{} as usize {{", n);
+                                    type_prefix = "";
+                                    if n.parse::<usize>().is_ok() {
+                                        cg!(self, "let mut {}: [{}{}; {}] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
+                                    } else {
+                                        cg!(self, "let mut {}: [{}{}; ({} as usize)] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
+                                    }
+
+                                    cg!(self, "for index in 0..{} as usize {{", n);
                                     self.indent();
-                                    cg!(self, "{}.push({}::decode(decoder)?);", name, rust_type);
+                                    cg!(self, "{}[index] = {}::decode(decoder)?;", name, rust_type);
                                     self.dedent();
                                     cg!(self, "}}");
                                 } else {
@@ -481,7 +493,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             },
             Choice(ref c) => {
                 for elem in c.elements() {
-                    let name = elem.name().to_string().to_snake_case();
+                    let name = rename_if_reserved(elem.name());
                     let trimmed_type = elem.type_().trim().to_string();
                     let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
                         debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
@@ -539,7 +551,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 Unbounded => format!("Vec<{}>", rust_type),
                 Num(n) => {
                     if false == is_rust_native {
-                        format!("Vec<{}>", rust_type)
+                        format!("[{}; ({} as usize)]", rust_type, n)
                     } else {
                         if n.parse::<usize>().is_ok() {
                             format!("[{}; {}]", rust_type, n)
