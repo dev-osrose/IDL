@@ -138,7 +138,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "}}");
 
         cg!(self);
-        cg!(self, "impl Decode for {} {{", packet.class_name().to_upper_camel_case());
+        cg!(self, "impl<Context> Decode<Context> for {} {{", packet.class_name().to_upper_camel_case());
         self.indent();
         cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
         self.indent();
@@ -340,7 +340,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             cg!(self, "}}");
 
                             cg!(self);
-                            cg!(self, "impl Decode for {} {{", elem.name());
+                            cg!(self, "impl<Context> Decode<Context> for {} {{", elem.name());
                             self.indent();
                             cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
                             self.indent();
@@ -428,7 +428,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
     fn complex_decode(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
-        cg!(self, "impl Decode for {} {{", complex.name().to_upper_camel_case());
+        cg!(self, "impl<Context> Decode<Context> for {} {{", complex.name().to_upper_camel_case());
         self.indent();
         cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
         self.indent();
@@ -683,7 +683,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             rust_type = "String".to_string();
         }
 
-        cg!(self, "impl Decode for {} {{", name.to_upper_camel_case());
+        cg!(self, "impl<Context> Decode<Context> for {} {{", name.to_upper_camel_case());
         self.indent();
         cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
         self.indent();
