@@ -2,27 +2,41 @@ use std::fs::File;
 use std::path::PathBuf;
 use codegen::Codegen;
 use ::{flat_ast, writer};
+use crate::type_registry::TypeRegistry;
 
 mod codegen_source;
 
-pub struct Generator {
-    output: PathBuf
+pub struct Generator<'a> {
+    output: PathBuf,
+    registry: &'a TypeRegistry,
+    shared_types_path: String,
 }
 
-impl Generator {
-    pub fn new(args: &RustArgs) -> Self {
+impl<'a> Generator<'a> {
+    pub fn new(args: &RustArgs, registry: &'a TypeRegistry) -> Self {
         Self{
-            output: args.output_folder.clone().into()
+            output: args.output_folder.clone().into(),
+            registry,
+            shared_types_path: args.shared_types_path.clone(),
         }
     }
 }
 
-impl Codegen for Generator {
+pub fn generate_shared(version: &str, registry: &TypeRegistry, args: &RustArgs) -> Result<(), failure::Error> {
+    let output: PathBuf = args.output_folder.clone().into();
+    let source_output = File::create(output.to_str().unwrap().to_owned() + "/shared_types.rs")?;
+    let mut writer = writer::Writer::new(source_output);
+    let mut codegen = codegen_source::CodeSourceGenerator::new_shared(&mut writer, version.to_string(), registry);
+    codegen.generate_shared()?;
+    Ok(())
+}
+
+impl<'a> Codegen for Generator<'a> {
     fn generate(&mut self, version: &str, packet: &flat_ast::Packet) -> Result<(), failure::Error> {
         let source_output = File::create(self.output.to_str().unwrap().to_owned() + &format!("/{}.rs", packet.filename()))?;
         debug!("source {:?}", source_output);
         let mut writer = writer::Writer::new(source_output);
-        let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer, version.to_string());
+        let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer, version.to_string(), self.registry, self.shared_types_path.clone());
         codegen.generate(&packet)?;
         Ok(())
     }
@@ -32,11 +46,15 @@ impl Codegen for Generator {
 #[command(name="rust")]
 pub struct RustArgs {
     #[arg(long)]
-    output_folder: String
+    output_folder: String,
+
+    #[arg(long, default_value = "crate::shared_types")]
+    shared_types_path: String,
 }
 
 #[cfg(test)]
 mod tests {
+    use type_registry::TypeRegistry;
     use crate::{flat_ast::Packet, writer::Writer};
     use super::{codegen_source};
 
@@ -70,7 +88,8 @@ mod tests {
     fn call_header(packet: &Packet) -> std::io::Result<String> {
         let writer = StringWriter::new();
         let mut writer = Writer::new(writer);
-        let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer, "0".to_string());
+        let registry = TypeRegistry::new();
+        let mut codegen = codegen_source::CodeSourceGenerator::new(&mut writer, "0".to_string(), &registry, "crate::shared_types".to_string());
         codegen.generate(packet)?;
         Ok(writer.into().into())
     }

@@ -4,16 +4,31 @@ use ::heck::*;
 use std::collections::HashMap;
 use flat_ast::RestrictionContent::{Enumeration, Length, MaxValue, MinValue};
 
+use crate::type_registry::TypeRegistry;
+
 pub (crate) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>,
-    version: String
+    version: String,
+    registry: &'a TypeRegistry,
+    shared_types_path: String,
 }
 
 impl<'a, W: Write> CodeSourceGenerator<'a, W> {
-    pub fn new(writer: &'a mut ::writer::Writer<W>, version: String) -> Self {
+    pub fn new(writer: &'a mut ::writer::Writer<W>, version: String, registry: &'a TypeRegistry, shared_types_path: String) -> Self {
         Self {
             writer,
-            version
+            version,
+            registry,
+            shared_types_path,
+        }
+    }
+
+    pub fn new_shared(writer: &'a mut ::writer::Writer<W>, version: String, registry: &'a TypeRegistry) -> Self {
+        Self {
+            writer,
+            version,
+            registry,
+            shared_types_path: String::new(),
         }
     }
 
@@ -37,6 +52,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, r#"use bincode::de::read::Reader;"#);
         cg!(self, r#"use bincode::enc::write::Writer;"#);
         cg!(self, r#"use utils::null_string::NullTerminatedString;"#);
+        cg!(self, r#"use {}::*;"#, self.shared_types_path);
         cg!(self, r#"use crate::enums::*;"#);
         cg!(self, r#"use crate::types::*;"#);
         cg!(self, r#"use crate::dataconsts::*;"#);
@@ -62,6 +78,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
+                Simple(simple) if self.registry.types.contains_key(simple.name()) => continue,
                 Simple(simple) => self.simple_type(simple, &iserialize)?,
                 _ => {}
             }
@@ -70,6 +87,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
+                Complex(ref complex) if self.registry.types.contains_key(complex.name()) => continue,
                 Complex(ref complex) => self.complex_type(complex, &iserialize)?,
                 _ => {}
             };
@@ -221,6 +239,41 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
+    pub fn generate_shared(&mut self) -> Result<()> {
+        cg!(self, "/* This file is @generated with IDL v{} */\n", self.version);
+        cg!(self, r#"use bincode::{{Encode, Decode, enc::Encoder, de::Decoder, error::DecodeError}};"#);
+        cg!(self, r#"use bincode::de::read::Reader;"#);
+        cg!(self, r#"use bincode::enc::write::Writer;"#);
+        cg!(self, r#"use utils::null_string::NullTerminatedString;"#);
+        cg!(self);
+
+        let mut iserialize: HashMap<String, String> = HashMap::new();
+        iserialize.insert("int8_t".to_string(), "i8".to_string());
+        iserialize.insert("uint8_t".to_string(), "u8".to_string());
+        iserialize.insert("int16_t".to_string(), "i16".to_string());
+        iserialize.insert("uint16_t".to_string(), "u16".to_string());
+        iserialize.insert("int32_t".to_string(), "i32".to_string());
+        iserialize.insert("uint32_t".to_string(), "u32".to_string());
+        iserialize.insert("int64_t".to_string(), "i64".to_string());
+        iserialize.insert("uint64_t".to_string(), "u64".to_string());
+        iserialize.insert("char".to_string(), "u8".to_string());
+        iserialize.insert("int".to_string(), "i32".to_string());
+        iserialize.insert("unsigned int".to_string(), "u32".to_string());
+        iserialize.insert("float".to_string(), "f32".to_string());
+        iserialize.insert("double".to_string(), "f64".to_string());
+        iserialize.insert("std::string".to_string(), "NullTerminatedString".to_string());
+
+        for (name, content) in &self.registry.types {
+             match content {
+                PacketContent::Simple(simple) => self.simple_type(simple, &iserialize)?,
+                PacketContent::Complex(complex) => self.complex_type(complex, &iserialize)?,
+                _ => {}
+            }
+            cg!(self);
+        }
+        Ok(())
+    }
+
     fn doc(&mut self, doc: &Option<String>) -> Result<()> {
         match doc {
             None => (),
@@ -258,16 +311,49 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
     }
 
+    fn has_bits(&self, complex: &ComplexType) -> bool {
+        match complex.content() {
+            ComplexTypeContent::Seq(ref s) => s.elements().iter().any(|e| e.bits().is_some()),
+            _ => false,
+        }
+    }
+
     fn complex_type(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         if complex.inline() == false {
+            let mut bitfield_type = None;
+            if self.has_bits(complex) {
+                let mut total_bits = 0;
+                if let Seq(ref s) = complex.content() {
+                    for e in s.elements() {
+                        total_bits += e.bits().unwrap_or_else(|| {
+                            let rust_type = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                                e.type_().trim().to_string()
+                            });
+                            match rust_type.as_str() {
+                                "u8" | "i8" => 8,
+                                "u16" | "i16" => 16,
+                                "u32" | "i32" | "f32" => 32,
+                                "u64" | "i64" | "f64" => 64,
+                                _ => 8,
+                            }
+                        });
+                    }
+                }
+                bitfield_type = Some(Self::get_bitfield_type(total_bits as usize));
+            }
+
             // All unions need to be outside the struct
             match complex.content() {
                 Choice(ref c) => {
                     for elem in c.elements() {
                         if let Some(ref seq) = c.inline_seqs().get(elem.name()) {
-                            cg!(self, r#"#[derive(Debug)]"#);
-                            cg!(self, "struct {} {{", elem.name());
+                            let mut derives = "Debug, Clone, Default".to_string();
+                            if *self.registry.is_copy.get(elem.name()).unwrap_or(&false) {
+                                derives += ", Copy";
+                            }
+                            cg!(self, r#"#[derive({})]"#, derives);
+                            cg!(self, "pub struct {} {{", elem.name());
                             self.indent();
                             for e in seq.elements() {
                                 self.element(e, &iserialize)?;
@@ -317,8 +403,23 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             let mut variable_names = Vec::new();
                             for e in seq.elements() {
                                 let name = rename_if_reserved(e.name());
-                                let bits = e.bits().map_or_else(|| "".to_string(), |b| format!("{}", b));
-                                cg!(self, "let {}_bits = Self::encode_bitfield(self.{}, {}, &mut offset);", e.name().to_snake_case(), name, bits);
+                                let rust_type_encoding = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                                    e.type_().trim().to_string()
+                                });
+                                let bits = e.bits().map_or_else(|| {
+                                    let size = match rust_type_encoding.as_str() {
+                                        "u8" | "i8" => 8,
+                                        "u16" | "i16" => 16,
+                                        "u32" | "i32" | "f32" => 32,
+                                        "u64" | "i64" | "f64" => 64,
+                                        _ => {
+                                            debug!("Unknown type for bitfield size calculation: {}, defaulting to 8", rust_type);
+                                            8
+                                        }
+                                    };
+                                    size.to_string()
+                                }, |b| format!("{}", b));
+                                cg!(self, "let {}_bits = Self::encode_bitfield(self.{} as {}, {}, &mut offset);", e.name().to_snake_case(), name, rust_type, bits);
                                 variable_names.push(format!("{}_bits", e.name().to_snake_case()));
                             }
                             cg!(self, "{}", variable_names.join(" | "));
@@ -349,8 +450,23 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                             let mut variable_names = Vec::new();
                             for e in seq.elements() {
                                 let name = rename_if_reserved(e.name());
-                                let bits = e.bits().map_or_else(|| "".to_string(), |b| format!("{}", b));
-                                cg!(self, "let {} = Self::decode_bitfield(bitfield, {}, &mut offset);", name, bits);
+                                let rust_type = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                                    e.type_().trim().to_string()
+                                });
+                                let bits = e.bits().map_or_else(|| {
+                                    let size = match rust_type.as_str() {
+                                        "u8" | "i8" => 8,
+                                        "u16" | "i16" => 16,
+                                        "u32" | "i32" | "f32" => 32,
+                                        "u64" | "i64" | "f64" => 64,
+                                        _ => {
+                                            debug!("Unknown type for bitfield size calculation: {}, defaulting to 8", rust_type);
+                                            8
+                                        }
+                                    };
+                                    size.to_string()
+                                }, |b| format!("{}", b));
+                                cg!(self, "let {} = Self::decode_bitfield(bitfield, {}, &mut offset) as {};", name, bits, rust_type);
                                 variable_names.push(format!("{}", name));
                             }
                             cg!(self, "Ok(Self {{ {} }})", variable_names.join(", "));
@@ -365,29 +481,94 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             }
 
             cg!(self);
-            cg!(self, r#"#[derive(Debug, Clone, Default)]"#);
+            let mut derives = "Debug, Clone, Default".to_string();
+            if *self.registry.is_copy.get(complex.name()).unwrap_or(&false) {
+                derives += ", Copy";
+            }
+            cg!(self, r#"#[derive({})]"#, derives);
             cg!(self, "pub struct {} {{", complex.name());
             self.indent();
-            match complex.content() {
-                Seq(ref s) => {
+
+            if let Some(rust_type) = bitfield_type {
+                if let Seq(ref s) = complex.content() {
                     for elem in s.elements() {
                         self.element(elem, &iserialize)?;
                     }
-                },
-                Choice(ref c) => {
-                    for elem in c.elements() {
-                        if let Some(ref _seq) = c.inline_seqs().get(elem.name()) {
-                            cg!(self, "{}: {},", elem.name().to_snake_case(), elem.name());
-                        } else {
+                }
+            } else {
+                match complex.content() {
+                    Seq(ref s) => {
+                        for elem in s.elements() {
                             self.element(elem, &iserialize)?;
                         }
-                    }
-                },
-                Empty => {}
+                    },
+                    Choice(ref c) => {
+                        for elem in c.elements() {
+                            if let Some(ref _seq) = c.inline_seqs().get(elem.name()) {
+                                cg!(self, "pub {}: {},", elem.name().to_snake_case(), elem.name());
+                            } else {
+                                self.element(elem, &iserialize)?;
+                            }
+                        }
+                    },
+                    Empty => {}
+                }
             }
             self.dedent();
             cg!(self, "}}");
             cg!(self);
+
+            if let Some(rust_type) = bitfield_type {
+                cg!(self, "impl {} {{", complex.name());
+                self.indent();
+                cg!(self, "fn encode_bitfield(value: {}, size: {}, offset: &mut {}) -> {} {{", rust_type, rust_type, rust_type, rust_type);
+                self.indent();
+                cg!(self, "let encoded = (value & ((1 << size) - 1)) << *offset;");
+                cg!(self, "*offset += size; // Update offset for the next field");
+                cg!(self, "encoded");
+                self.dedent();
+                cg!(self, "}}");
+                cg!(self);
+                cg!(self, "fn decode_bitfield(encoded: {}, size: {}, offset: &mut {}) -> {} {{", rust_type, rust_type, rust_type, rust_type);
+                self.indent();
+                cg!(self, "let value = (encoded >> *offset) & ((1 << size) - 1);");
+                cg!(self, "*offset += size; // Update offset for the next field");
+                cg!(self, "value");
+                self.dedent();
+                cg!(self, "}}");
+                cg!(self);
+                cg!(self, "pub fn encode_data(&self) -> {} {{", rust_type);
+                self.indent();
+                cg!(self, "let mut offset = 0;");
+                let mut variable_names = Vec::new();
+                if let Seq(ref s) = complex.content() {
+                    for e in s.elements() {
+                        let name = rename_if_reserved(e.name());
+                        let rust_type_encoding = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                            e.type_().trim().to_string()
+                        });
+                        let bits = e.bits().map_or_else(|| {
+                            let size = match rust_type_encoding.as_str() {
+                                "u8" | "i8" => 8,
+                                "u16" | "i16" => 16,
+                                "u32" | "i32" | "f32" => 32,
+                                "u64" | "i64" | "f64" => 64,
+                                _ => 8,
+                            };
+                            size.to_string()
+                        }, |b| format!("{}", b));
+                        cg!(self, "let {}_bits = Self::encode_bitfield(self.{} as {}, {}, &mut offset);", e.name().to_snake_case(), name, rust_type, bits);
+                        variable_names.push(format!("{}_bits", e.name().to_snake_case()));
+                    }
+                }
+                cg!(self, "{}", variable_names.join(" | "));
+                self.dedent();
+                cg!(self, "}}");
+                self.dedent();
+                cg!(self, "}}");
+                cg!(self);
+            }
+
             let _ = self.complex_encode(complex, iserialize);
             cg!(self);
             let _ = self.complex_decode(complex, iserialize);
@@ -395,27 +576,31 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn complex_encode(&mut self, complex: &ComplexType, _iserialize: &HashMap<String, String>) -> Result<()> {
+    fn complex_encode(&mut self, complex: &ComplexType, iserialize: &HashMap<String, String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
         cg!(self, "impl Encode for {} {{", complex.name());
         self.indent();
         cg!(self, "fn encode<E: Encoder>(&self, encoder: &mut E) -> std::result::Result<(), bincode::error::EncodeError> {{");
         self.indent();
 
-        match complex.content() {
-            Seq(ref s) => {
-                for elem in s.elements() {
-                    let name = rename_if_reserved(elem.name());
-                    cg!(self, "self.{}.encode(encoder)?;", name);
-                }
-            },
-            Choice(ref c) => {
-                for elem in c.elements() {
-                    let name = rename_if_reserved(elem.name());
-                    cg!(self, "self.{}.encode(encoder)?;", name);
-                }
-            },
-            Empty => {}
+        if self.has_bits(complex) {
+            cg!(self, "self.encode_data().encode(encoder)?;");
+        } else {
+            match complex.content() {
+                Seq(ref s) => {
+                    for elem in s.elements() {
+                        let name = rename_if_reserved(elem.name());
+                        cg!(self, "self.{}.encode(encoder)?;", name);
+                    }
+                },
+                Choice(ref c) => {
+                    for elem in c.elements() {
+                        let name = rename_if_reserved(elem.name());
+                        cg!(self, "self.{}.encode(encoder)?;", name);
+                    }
+                },
+                Empty => {}
+            }
         }
         cg!(self, "Ok(())");
 
@@ -433,81 +618,70 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         cg!(self, "fn decode<D: Decoder>(decoder: &mut D) -> std::result::Result<Self, bincode::error::DecodeError> {{");
         self.indent();
 
-        let mut output_list = Vec::new();
-        match complex.content() {
-            Seq(ref s) => {
-                for elem in s.elements() {
-                    let name = rename_if_reserved(elem.name());
-                    let trimmed_type = elem.type_().trim().to_string();
-                    let mut is_rust_native = true;
-                    let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
-                        debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
-                        is_rust_native = false;
-                        trimmed_type.clone()
+        if self.has_bits(complex) {
+            let mut total_bits = 0;
+            if let Seq(ref s) = complex.content() {
+                for e in s.elements() {
+                    total_bits += e.bits().unwrap_or_else(|| {
+                        let rust_type = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                            e.type_().trim().to_string()
+                        });
+                        match rust_type.as_str() {
+                            "u8" | "i8" => 8,
+                            "u16" | "i16" => 16,
+                            "u32" | "i32" | "f32" => 32,
+                            "u64" | "i64" | "f64" => 64,
+                            _ => 8,
+                        }
                     });
-
-                    if let Some(ref o) = elem.occurs() {
-                        use ::flat_ast::Occurs::*;
-                        match o {
-                            Unbounded => {
-                                cg!(self, "let {} = Vec::decode(decoder)?;", name);
-                            }
-                            Num(n) => {
-                                let mut type_prefix = "0";
-                                if "String" == rust_type {
-                                    type_prefix = "";
-                                }
-
-                                if false == is_rust_native {
-                                    type_prefix = "";
-                                    if n.parse::<usize>().is_ok() {
-                                        cg!(self, "let mut {}: [{}{}; {}] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
-                                    } else {
-                                        cg!(self, "let mut {}: [{}{}; ({} as usize)] = core::array::from_fn(|i| {}{}::default());", name, type_prefix, rust_type, n, type_prefix, rust_type);
-                                    }
-
-                                    cg!(self, "for index in 0..{} as usize {{", n);
-                                    self.indent();
-                                    cg!(self, "{}[index] = {}::decode(decoder)?;", name, rust_type);
-                                    self.dedent();
-                                    cg!(self, "}}");
-                                } else {
-                                    if n.parse::<usize>().is_ok() {
-                                        cg!(self, "let mut {} = [{}{}; {}];", name, type_prefix, rust_type, n);
-                                    } else {
-                                        cg!(self, "let mut {} = [{}{}; ({} as usize)];", name, type_prefix, rust_type, n);
-                                    }
-                                    cg!(self, "for value in &mut {} {{", name);
-                                    self.indent();
-                                    cg!(self, "*value = {}::decode(decoder)?;", rust_type);
-                                    self.dedent();
-                                    cg!(self, "}}");
-                                }
-                            }
+                }
+            }
+            let rust_type = Self::get_bitfield_type(total_bits as usize);
+            cg!(self, "let bitfield = {}::decode(decoder)?;", rust_type);
+            cg!(self, "let mut offset = 0;");
+            let mut variable_names = Vec::new();
+            if let Seq(ref s) = complex.content() {
+                for e in s.elements() {
+                    let name = rename_if_reserved(e.name());
+                    let rust_type_field = iserialize.get(e.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
+                        e.type_().trim().to_string()
+                    });
+                    let bits = e.bits().map_or_else(|| {
+                        let size = match rust_type_field.as_str() {
+                            "u8" | "i8" => 8,
+                            "u16" | "i16" => 16,
+                            "u32" | "i32" | "f32" => 32,
+                            "u64" | "i64" | "f64" => 64,
+                            _ => 8,
                         };
-                    } else {
-                        cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type);
+                        size.to_string()
+                    }, |b| format!("{}", b));
+                    cg!(self, "let {} = Self::decode_bitfield(bitfield, {}, &mut offset) as {};", name, bits, rust_type_field);
+                    variable_names.push(format!("{}", name));
+                }
+            }
+            cg!(self, "Ok(Self {{ {} }})", variable_names.join(", "));
+        } else {
+            let mut variable_names = Vec::new();
+            match complex.content() {
+                Seq(ref s) => {
+                    for elem in s.elements() {
+                        let name = rename_if_reserved(elem.name());
+                        cg!(self, "let {} = Decode::decode(decoder)?;", name);
+                        variable_names.push(name);
                     }
-                    output_list.push(name);
-                }
-            },
-            Choice(ref c) => {
-                for elem in c.elements() {
-                    let name = rename_if_reserved(elem.name());
-                    let trimmed_type = elem.type_().trim().to_string();
-                    let rust_type = iserialize.get(elem.type_().trim()).map(|s| s.to_string()).unwrap_or_else(|| {
-                        debug!(r#"Type "{}" not found, outputting anyway"#, elem.type_());
-                        trimmed_type.clone()
-                    });
-
-                    cg!(self, "let {} = {}::decode(decoder)?;", name, rust_type);
-                    output_list.push(name);
-                }
-            },
-            Empty => {}
+                },
+                Choice(ref c) => {
+                    for elem in c.elements() {
+                        let name = rename_if_reserved(elem.name());
+                        cg!(self, "let {} = Decode::decode(decoder)?;", name);
+                        variable_names.push(name);
+                    }
+                },
+                Empty => {}
+            }
+            cg!(self, "Ok(Self {{ {} }})", variable_names.join(", "));
         }
-        cg!(self, "Ok(Self {{ {} }})", output_list.join(", "));
-
         self.dedent();
         cg!(self, "}}");
         self.dedent();
@@ -531,10 +705,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         self.doc(elem.doc())?;
 
         if let Some(bitset) = elem.bitset() {
-            if bitset.start == 0 {
-                cg!(self, "{}: [bool; {}],", bitset.name, bitset.size);
+            if bitset.size > 0 {
+                if bitset.start == 0 {
+                    cg!(self, "{}: [bool; {}],", bitset.name, bitset.size);
+                }
+                return Ok(());
             }
-            return Ok(());
         }
 
         let trimmed_type = elem.type_().trim().to_string();
@@ -572,7 +748,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         // };
         let name = rename_if_reserved(elem.name());
         // cg!(self, "{}: {}{}{},", elem.name(), type_, bits, default);
-        cg!(self, "pub(crate) {}: {}, {}", name, type_, bits);
+        cg!(self, "pub {}: {}, {}", name, type_, bits);
         Ok(())
     }
 
@@ -595,8 +771,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
         if is_enum {
             cg!(self, r#"#[repr({})]"#, rust_type);
-            cg!(self, r#"#[derive(Debug, Clone)]"#);
-            cg!(self, "pub(crate) enum {} {{", name.to_upper_camel_case());
+            let mut derives = "Debug, Clone".to_string();
+            if *self.registry.is_copy.get(name).unwrap_or(&false) {
+                derives += ", Copy";
+            }
+            cg!(self, r#"#[derive({})]"#, derives);
+            cg!(self, "pub enum {} {{", name.to_upper_camel_case());
             self.indent();
             for content in restrict.contents() {
                 if let Enumeration(en) = content {
@@ -605,10 +785,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                 }
             }
         } else {
-            cg!(self, r#"#[derive(Debug)]"#);
+            let mut derives = "Debug".to_string();
+            if *self.registry.is_copy.get(name).unwrap_or(&false) {
+                derives += ", Copy, Clone";
+            } else {
+                derives += ", Clone";
+            }
+            cg!(self, r#"#[derive({})]"#, derives);
             cg!(self, "pub struct {} {{", name.to_upper_camel_case());
             self.indent();
-            cg!(self, "pub(crate) {}: {},", name.to_string().to_snake_case(), rust_type);
+            cg!(self, "pub {}: {},", name.to_string().to_snake_case(), rust_type);
         }
 
         self.dedent();
