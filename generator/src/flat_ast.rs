@@ -15,7 +15,7 @@ pub enum PacketContent {
     Complex(ComplexType)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ComplexType {
     name: String,
     content: ComplexTypeContent,
@@ -24,7 +24,7 @@ pub struct ComplexType {
     inline: bool
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ComplexTypeContent {
     Seq(Sequence),
     Choice(Choice),
@@ -43,7 +43,7 @@ pub struct Sequence {
     inline: bool
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Choice {
     elements: Vec<Element>,
     doc: Option<String>,
@@ -78,26 +78,26 @@ pub struct Bitset {
     pub name: String
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SimpleType {
     name: String,
     contents: Vec<SimpleTypeContent>,
     doc: Option<String>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SimpleTypeContent {
     Restriction(Restriction)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Restriction {
     base: String,
     doc: Option<String>,
     contents: Vec<RestrictionContent>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RestrictionContent {
     Enumeration(Enumeration),
     Length(u32),
@@ -105,7 +105,7 @@ pub enum RestrictionContent {
     MaxValue(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Enumeration {
     value: String,
     id: i64,

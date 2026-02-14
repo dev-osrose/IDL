@@ -218,19 +218,31 @@ fn flatten_enum(e: &ast::Enumeration, enum_id: &mut i64) -> flat_ast::Enumeratio
 fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
     use flat_ast::ComplexTypeContent::*;
     use self::ast::ComplexTypeContent;
+    
+    let mut path = ctx.path.clone();
+    path.push(c.name().clone());
+    let mut ctx2 = Context {
+        packet: ctx.packet,
+        path,
+        complex_types: ctx.complex_types.clone(),
+        is_in_choice: false,
+        bitsets: 0,
+        current_bitset: None,
+    };
+
     let mut inline = false;
     let content = match c.content() {
-        ComplexTypeContent::Choice(ref c) => Choice(flatten_choice(c, ctx)),
+        ComplexTypeContent::Choice(ref c) => Choice(flatten_choice(c, &mut ctx2)),
         ComplexTypeContent::Seq(ref s) => {
-            let seq = flatten_seq(s, ctx);
+            let seq = flatten_seq(s, &mut ctx2);
             inline = seq.inline();
             Seq(seq)
         },
         ComplexTypeContent::Empty => Empty
     };
+    ctx2.stop_bits();
     let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(cot));
-    ctx.stop_bits();
 }
 
 fn flatten_anon_complex(c: &ast::AnonComplexType, ctx: &mut Context, element_name: &Option<String>) -> flat_ast::ComplexType {
@@ -357,7 +369,9 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
         }
     };
     let bitset = if let Some(bits) = elem.bits() {
-        if let Some(start) = ctx.add_bits(bits) {
+        if ctx.is_in_choice {
+            None
+        } else if let Some(start) = ctx.add_bits(bits) {
             Some(flat_ast::Bitset::new(0, start, format!("bitset{}", ctx.bitsets)))
         } else {
             None

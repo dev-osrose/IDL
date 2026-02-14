@@ -10,6 +10,7 @@ mod flatten;
 mod writer;
 mod codegen;
 mod graph_passes;
+mod type_registry;
 
 use codegen::{cpp, rust, Codegen, CodegenCommands};
 
@@ -41,6 +42,9 @@ fn main() -> Result<(), failure::Error> {
 
     simple_logger::init_with_level(verbose).unwrap();
 
+    let mut registry = type_registry::TypeRegistry::new();
+    let mut packets = Vec::new();
+
     for filename in args.inputs.iter().map(std::path::Path::new) {
         debug!("filename {:?}", filename);
         use std::fs::File;
@@ -53,9 +57,20 @@ fn main() -> Result<(), failure::Error> {
         trace!("packet {:?}", packet);
         let packet = graph_passes::run(packet)?;
         debug!("packet {:#?}", packet);
+        registry.collect_from_packet(&packet)?;
+        packets.push(packet);
+    }
+
+    registry.compute_is_copy();
+
+    if let CodegenCommands::RustCommand(ref rust_args) = args.command {
+        rust::generate_shared(VERSION, &registry, rust_args)?;
+    }
+
+    for packet in packets {
         let mut generator: Box<dyn Codegen> = match &args.command {
             CodegenCommands::CppCommand(args) => Box::new(cpp::Generator::new(args)),
-            CodegenCommands::RustCommand(args) => Box::new(rust::Generator::new(args)),
+            CodegenCommands::RustCommand(args) => Box::new(rust::Generator::new(args, &registry)),
         };
         generator.generate(VERSION, &packet)?;
         info!("Generated packet {}", packet.type_());
