@@ -10,7 +10,12 @@ struct Context<'a> {
     complex_types: HashSet<String>,
     is_in_choice: bool,
     bitsets: u32,
-    current_bitset: Option<u32>
+    current_bitset: Option<u32>,
+    /// Whether the elements of a finished run of bits are found in the
+    /// packet's contents. Not so while a named complex type is flattened: the
+    /// type joins the packet only once it is complete, and `size_bitsets`
+    /// sizes its runs then.
+    runs_in_packet: bool
 }
 
 impl<'a> Context<'a> {
@@ -114,9 +119,11 @@ impl<'a> Context<'a> {
                 panic!("Error, {} bits cannot be aligned", bitset);
             }
             trace!("generating bitset of {} bits", bitset);
-            for elem in self.find_bitset_mut_ref(self.bitsets) {
-                trace!("{}", elem.name());
-                elem.bitset_mut().as_mut().unwrap().size = bitset;
+            if self.runs_in_packet {
+                for elem in self.find_bitset_mut_ref(self.bitsets) {
+                    trace!("{}", elem.name());
+                    elem.bitset_mut().as_mut().unwrap().size = bitset;
+                }
             }
             self.current_bitset = None;
         }
@@ -132,7 +139,8 @@ pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_
             complex_types: HashSet::new(),
             is_in_choice: false,
             bitsets: 0,
-            current_bitset: None
+            current_bitset: None,
+            runs_in_packet: true
         };
         flatten_(search_path, p, &mut ctx)?;
         if ctx.bitsets != 0 {
@@ -226,23 +234,59 @@ fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
         path,
         complex_types: ctx.complex_types.clone(),
         is_in_choice: false,
-        bitsets: 0,
+        // Numbered on from the packet's, so every run of the packet has its
+        // own name, and the packet knows it has runs (for the include).
+        bitsets: ctx.bitsets,
         current_bitset: None,
+        runs_in_packet: false,
     };
 
     let mut inline = false;
     let content = match c.content() {
         ComplexTypeContent::Choice(ref c) => Choice(flatten_choice(c, &mut ctx2)),
         ComplexTypeContent::Seq(ref s) => {
-            let seq = flatten_seq(s, &mut ctx2);
+            let mut seq = flatten_seq(s, &mut ctx2);
             inline = seq.inline();
+            size_bitsets(seq.elements_mut());
             Seq(seq)
         },
         ComplexTypeContent::Empty => Empty
     };
     ctx2.stop_bits();
+    let bitsets = ctx2.bitsets;
+    ctx.bitsets = bitsets;
     let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(cot));
+}
+
+/// Gives every element of each run of bits in `elements` the width of the
+/// whole run.
+fn size_bitsets(elements: &mut [flat_ast::Element]) {
+    let mut start = 0;
+    while start < elements.len() {
+        let name = match elements[start].bitset() {
+            Some(bitset) => bitset.name.clone(),
+            None => {
+                start += 1;
+                continue;
+            }
+        };
+        let mut end = start;
+        let mut size = 0;
+        while end < elements.len()
+            && elements[end].bitset().as_ref().map_or(false, |b| b.name == name)
+        {
+            size += elements[end].bits().unwrap_or(0);
+            end += 1;
+        }
+        if size % 8 != 0 {
+            panic!("Error, {} bits cannot be aligned", size);
+        }
+        for elem in &mut elements[start..end] {
+            elem.bitset_mut().as_mut().unwrap().size = size;
+        }
+        start = end;
+    }
 }
 
 fn flatten_anon_complex(c: &ast::AnonComplexType, ctx: &mut Context, element_name: &Option<String>) -> flat_ast::ComplexType {
@@ -387,4 +431,56 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
         element.set_enum_type(t.clone());
     }
     element
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bitsets(xml: &str, type_name: &str) -> Vec<(String, u32, u32)> {
+        let packet = Reader::load_packet(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap();
+        let packet = flatten(::std::path::Path::new("."), &packet).unwrap();
+        for content in packet.contents() {
+            if let flat_ast::PacketContent::Complex(c) = content {
+                if c.name() == type_name {
+                    if let flat_ast::ComplexTypeContent::Seq(s) = c.content() {
+                        return s
+                            .elements()
+                            .iter()
+                            .filter_map(|e| e.bitset().as_ref().map(|b| (b.name.clone(), b.start, b.size)))
+                            .collect();
+                    }
+                }
+            }
+        }
+        panic!("no sequence {}", type_name)
+    }
+
+    #[test]
+    fn runs_of_bits_in_a_named_type_get_their_full_width() {
+        let xml = r#"<packet ePacketType = "PAKWC_TEST">
+            <complexType name = "First">
+                <sequence>
+                    <element name = "a" type = "uint8_t" bits = "4" />
+                    <element name = "b" type = "uint8_t" bits = "4" />
+                    <element name = "c" type = "uint8_t" />
+                    <element name = "d" type = "uint16_t" bits = "16" />
+                </sequence>
+            </complexType>
+            <complexType name = "Second">
+                <sequence>
+                    <element name = "e" type = "uint16_t" bits = "10" />
+                    <element name = "f" type = "uint16_t" bits = "6" />
+                </sequence>
+            </complexType>
+            <element name = "first" type = "First" />
+            <element name = "second" type = "Second" />
+        </packet>"#;
+        assert_eq!(
+            bitsets(xml, "First"),
+            [("bitset1".into(), 0, 8), ("bitset1".into(), 4, 8), ("bitset2".into(), 0, 16)]
+        );
+        // Numbered on from the first type: no run shares a name with another.
+        assert_eq!(bitsets(xml, "Second"), [("bitset3".into(), 0, 16), ("bitset3".into(), 10, 16)]);
+    }
 }
