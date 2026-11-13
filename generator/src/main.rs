@@ -63,17 +63,20 @@ fn main() -> Result<(), failure::Error> {
 
     registry.compute_is_copy();
 
-    if let CodegenCommands::RustCommand(ref rust_args) = args.command {
-        rust::generate_shared(VERSION, &registry, rust_args)?;
-    }
-
-    for packet in packets {
-        let mut generator: Box<dyn Codegen> = match &args.command {
-            CodegenCommands::CppCommand(args) => Box::new(cpp::Generator::new(args)),
-            CodegenCommands::RustCommand(args) => Box::new(rust::Generator::new(args, &registry)),
-        };
-        generator.generate(VERSION, &packet)?;
-        info!("Generated packet {}", packet.type_());
+    match &args.command {
+        CodegenCommands::CppCommand(cpp_args) => {
+            for packet in packets {
+                let mut generator: Box<dyn Codegen> = Box::new(cpp::Generator::new(cpp_args));
+                generator.generate(VERSION, &packet)?;
+                info!("Generated packet {}", packet.type_());
+            }
+        }
+        // The Rust backend generates all packets at once: they share one
+        // module of types.
+        CodegenCommands::RustCommand(rust_args) => {
+            rust::generate(VERSION, &packets, rust_args)?;
+            info!("Generated {} packets", packets.len());
+        }
     }
     Ok(())
 }
