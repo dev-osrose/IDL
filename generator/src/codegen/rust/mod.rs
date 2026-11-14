@@ -30,9 +30,15 @@
 //! PacketType     one associated constant per packet type name
 //! ```
 //!
-//! Constants used as element counts are taken from `--consts-path`.
+//! Constants used as element counts are taken from `--consts-path`, as
+//! `usize`.
+//!
+//! `<definitions>` files give a module each, named after them, with their
+//! enumerations (like those of the packets) and their constants (`pub const`,
+//! of the Rust type matching the C++ one).
 
 mod context;
+mod definitions;
 mod files;
 mod names;
 mod prim;
@@ -47,7 +53,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::Path;
 
-use ::flat_ast::{ComplexType, ComplexTypeContent, Packet, PacketContent};
+use ::flat_ast::{ComplexType, ComplexTypeContent, Definitions, Packet, PacketContent};
 
 use self::context::{Ctx, Def};
 
@@ -69,7 +75,8 @@ pub struct RustArgs {
     #[arg(long, default_value = "crate::wire")]
     pub runtime_path: String,
 
-    /// Path of the module holding the `usize` constants used as counts.
+    /// Path of the module holding the constants used as counts (any
+    /// integer type; they are converted to `usize` where used).
     #[arg(long, default_value = "crate::consts")]
     pub consts_path: String,
 
@@ -89,9 +96,15 @@ pub struct RustArgs {
 }
 
 /// Generates the modules of all `packets`: one per packet, `shared_types.rs`
-/// with the types they use, and `mod.rs` tying them together.
-pub fn generate(version: &str, packets: &[Packet], args: &RustArgs) -> std::result::Result<(), failure::Error> {
-    let files = generate_files(version, packets, args).map_err(failure::err_msg)?;
+/// with the types they use, one per set of `definitions`, and `mod.rs` tying
+/// them together.
+pub fn generate(
+    version: &str,
+    packets: &[Packet],
+    definitions: &[Definitions],
+    args: &RustArgs,
+) -> std::result::Result<(), failure::Error> {
+    let files = generate_files(version, packets, definitions, args).map_err(failure::err_msg)?;
     let dir = Path::new(&args.output_folder);
     std::fs::create_dir_all(dir)?;
     for (name, content) in &files {
@@ -101,7 +114,12 @@ pub fn generate(version: &str, packets: &[Packet], args: &RustArgs) -> std::resu
 }
 
 /// The generated files, by file name.
-pub(crate) fn generate_files(version: &str, packets: &[Packet], args: &RustArgs) -> Result<BTreeMap<String, String>> {
+pub(crate) fn generate_files(
+    version: &str,
+    packets: &[Packet],
+    definitions: &[Definitions],
+    args: &RustArgs,
+) -> Result<BTreeMap<String, String>> {
     let ctx = Ctx::new(args, packets)?;
     let mut files = BTreeMap::new();
 
@@ -157,8 +175,18 @@ pub(crate) fn generate_files(version: &str, packets: &[Packet], args: &RustArgs)
         modules.push((packet.filename().clone(), class.clone()));
         files.insert(format!("{}.rs", packet.filename()), body);
     }
+    let mut separate = Vec::new();
+    for d in definitions {
+        let file = format!("{}.rs", d.name());
+        if files.contains_key(&file) || separate.contains(d.name()) {
+            return Err(format!("{}: another packet or definitions would be generated as {}", d.name(), file));
+        }
+        files.insert(file, ctx.definitions(version, d)?);
+        separate.push(d.name().clone());
+    }
     modules.sort();
-    files.insert("mod.rs".to_owned(), files::index(version, &modules));
+    separate.sort();
+    files.insert("mod.rs".to_owned(), files::index(version, &modules, &separate));
     Ok(files)
 }
 

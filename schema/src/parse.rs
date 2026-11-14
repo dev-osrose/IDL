@@ -11,6 +11,36 @@ pub fn parse_packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
     packet(r, attrs)
 }
 
+pub fn parse_definitions(r: &mut Reader, attrs: Attributes) -> Result<Definitions> {
+    trace!("reading definitions in root");
+    let mut definitions = Definitions::new(attrs.get("name")?);
+
+    use self::Either::*;
+    for item in r.map(&[
+        ("simpleType", &|r, attrs| Ok(A(DefinitionsContent::SimpleType(simple_type(r, attrs)?)))),
+        ("constant", &|r, attrs| Ok(A(DefinitionsContent::Constant(constant(r, attrs)?)))),
+        ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?)))
+    ])? {
+        match item {
+            A(item) => definitions.add_content(item),
+            B(doc) => definitions.set_doc(doc)
+        }
+    }
+    Ok(definitions)
+}
+
+fn constant(r: &mut Reader, attrs: Attributes) -> Result<Constant> {
+    trace!("reading constant");
+    let name = attrs.get("name")?;
+    let type_ = attrs.get("type")?;
+    let value = attrs.get("value")?;
+    let mut doc = None;
+    for documentation in r.map(&[("documentation", &documentation)])? {
+        doc = Some(documentation);
+    }
+    Ok(Constant::new(name, type_, value, doc))
+}
+
 pub fn parse_simple_type(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
     use self::PacketContent::*;
     trace!("reading simpleType in root");
@@ -165,6 +195,7 @@ fn simple_type(r: &mut Reader, attrs: Attributes) -> Result<SimpleType> {
     trace!("reading simple_type");
     let name = attrs.get("name")?;
     let mut sit = SimpleType::new(name);
+    sit.set_scoped(attrs.get_or("scoped", false));
 
     use self::Either::*;
     for item in r.map(&[

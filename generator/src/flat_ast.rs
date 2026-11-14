@@ -7,6 +7,46 @@ pub struct Packet {
     filename: String
 }
 
+/// Types and constants generated on their own, not as part of a packet
+/// (`<definitions>`).
+#[derive(Debug)]
+pub struct Definitions {
+    name: String,
+    doc: Option<String>,
+    contents: Vec<DefinitionsContent>
+}
+
+#[derive(Debug)]
+pub enum DefinitionsContent {
+    Simple(SimpleType),
+    Constant(Constant)
+}
+
+pub use ::schema::ast::Constant;
+
+impl Definitions {
+    pub fn new(name: String, doc: Option<String>) -> Self {
+        Definitions { name, doc, contents: Vec::new() }
+    }
+
+    /// The name of the generated files, as the XML gives it.
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn doc(&self) -> &Option<String> {
+        &self.doc
+    }
+
+    pub fn contents(&self) -> &[DefinitionsContent] {
+        &self.contents
+    }
+
+    pub fn add_content(&mut self, content: DefinitionsContent) {
+        self.contents.push(content);
+    }
+}
+
 #[derive(Debug)]
 pub enum PacketContent {
     Include(String, bool),
@@ -81,8 +121,11 @@ pub struct Bitset {
 #[derive(Debug, Clone)]
 pub struct SimpleType {
     name: String,
+    /// The name as the XML has it (`name` is in upper camel case).
+    xml_name: String,
     contents: Vec<SimpleTypeContent>,
-    doc: Option<String>
+    doc: Option<String>,
+    scoped: bool
 }
 
 #[derive(Debug, Clone)]
@@ -439,7 +482,21 @@ impl Bitset {
 
 impl SimpleType {
     pub fn new(name: String, doc: Option<String>) -> Self {
-        SimpleType{ name: name.to_upper_camel_case(), contents: Vec::new(), doc }
+        SimpleType{ name: name.to_upper_camel_case(), xml_name: name, contents: Vec::new(), doc, scoped: false }
+    }
+
+    /// The name exactly as the XML writes it.
+    pub fn xml_name(&self) -> &String {
+        &self.xml_name
+    }
+
+    /// A scoped enumeration (`enum class` in C++).
+    pub fn scoped(&self) -> bool {
+        self.scoped
+    }
+
+    pub fn set_scoped(&mut self, scoped: bool) {
+        self.scoped = scoped;
     }
 
     pub fn add_content(&mut self, content: SimpleTypeContent) {

@@ -19,17 +19,19 @@ fn args() -> RustArgs {
     }
 }
 
-/// Generates the given packet definitions (each one XML document).
+/// Generates the given XML documents: packets, or definitions.
 fn generate_with(xmls: &[&str], args: &RustArgs) -> Result<BTreeMap<String, String>, String> {
-    let packets: Vec<_> = xmls
-        .iter()
-        .map(|xml| {
-            let packet = ::schema::Reader::load_packet(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap();
-            let packet = ::flatten::flatten(std::path::Path::new("."), &packet).unwrap();
-            ::graph_passes::run(packet).unwrap()
-        })
-        .collect();
-    generate_files("test", &packets, args)
+    let (mut packets, mut definitions) = (Vec::new(), Vec::new());
+    for xml in xmls {
+        match ::schema::Reader::load_document(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap() {
+            ::schema::ast::Document::Packet(packet) => {
+                let packet = ::flatten::flatten(std::path::Path::new("."), &packet).unwrap();
+                packets.push(::graph_passes::run(packet).unwrap());
+            }
+            ::schema::ast::Document::Definitions(d) => definitions.push(::flatten::flatten_definitions(&d)),
+        }
+    }
+    generate_files("test", &packets, &definitions, args)
 }
 
 fn generate(xmls: &[&str]) -> BTreeMap<String, String> {
@@ -241,7 +243,7 @@ fn counts_come_from_numbers_constants_and_enumerators() {
     </packet>"#]);
     contains_in_order(
         &files["srv_counts.rs"],
-        &["pub a: [u8; 4],", "pub b: [u8; crate::consts::MAX_ITEMS],", "pub c: [u8; 3],"],
+        &["pub a: [u8; 4],", "pub b: [u8; crate::consts::MAX_ITEMS as usize],", "pub c: [u8; 3],"],
     );
 }
 
@@ -277,4 +279,72 @@ fn samples_are_optional_and_behind_their_feature() {
     };
     let files = generate_with(&[LOGIN], &without).unwrap();
     assert!(!files["cli_login_req.rs"].contains("Sample"));
+}
+
+const PACKET_TYPE: &str = r#"<definitions name = "packet_type">
+    <documentation>Packet type ids.</documentation>
+    <simpleType name = "ePacketType" scoped = "true">
+        <restriction base = "uint16_t">
+            <enumeration value = "PAKSTART" id = "0x700" />
+            <enumeration value = "PAKCS_ALIVE" id = "0x700" />
+            <enumeration value = "PAKSS_ERROR" />
+            <enumeration value = "STRESS" id = "0x6F6D" />
+        </restriction>
+    </simpleType>
+    <constant name = "MAX_STAT" type = "uint32_t" value = "300">
+        <documentation>Highest a stat goes.</documentation>
+    </constant>
+    <constant name = "TAB_SIZE" type = "uint8_t" value = "0x1E" />
+    <constant name = "DROP_RANGE" type = "float" value = "50" />
+</definitions>"#;
+
+#[test]
+fn definitions_are_a_module_of_their_own() {
+    let files = generate(&[LOGIN, PACKET_TYPE]);
+    contains_in_order(&files["mod.rs"], &["pub mod shared_types;", "pub mod packet_type;", "pub mod cli_login_req;"]);
+    let module = &files["packet_type.rs"];
+    contains_in_order(
+        module,
+        &[
+            "//! Packet type ids.",
+            "pub struct EPacketType(pub u16);",
+            "pub const PAKSTART: Self = Self((1792) as u16);",
+            "pub const PAKCS_ALIVE: Self = Self((1792) as u16);",
+            "pub const PAKSS_ERROR: Self = Self((1793) as u16);",
+            "pub const STRESS: Self = Self((28525) as u16);",
+            // The packet, not the marker before it, names the value.
+            "1792 => Some(\"PAKCS_ALIVE\"),",
+            "/// Highest a stat goes.\npub const MAX_STAT: u32 = 300;",
+            "pub const TAB_SIZE: u8 = 0x1E;",
+            "pub const DROP_RANGE: f32 = 50.0;",
+        ],
+    );
+    // Definitions are not types of the packets.
+    assert!(!files["shared_types.rs"].contains("EPacketType"));
+}
+
+#[test]
+fn a_constant_has_to_fit_its_type() {
+    let bad = |ty: &str, value: &str| {
+        let xml = format!(r#"<definitions name = "consts"><constant name = "X" type = "{}" value = "{}" /></definitions>"#, ty, value);
+        generate_with(&[xml.as_str()], &args()).unwrap_err()
+    };
+    assert!(bad("uint8_t", "256").contains("does not fit"));
+    assert!(bad("uint32_t", "-1").contains("does not fit"));
+    assert!(bad("int32_t", "1.5").contains("is not an integer"));
+    assert!(bad("float", "fast").contains("is not a number"));
+    assert!(bad("std::string", "x").contains("is not an integer, float or double"));
+}
+
+#[test]
+fn a_scoped_enumeration_belongs_in_definitions() {
+    let xml = r#"<packet ePacketType = "PAKWC_SCOPED">
+        <simpleType name = "Kind" scoped = "true">
+            <restriction base = "uint8_t"><enumeration value = "A" /></restriction>
+        </simpleType>
+        <element name = "kind" type = "Kind" />
+    </packet>"#;
+    let packet = ::schema::Reader::load_packet(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap();
+    let error = ::flatten::flatten(std::path::Path::new("."), &packet).unwrap_err();
+    assert!(error.to_string().contains("only supported in <definitions>"), "{}", error);
 }

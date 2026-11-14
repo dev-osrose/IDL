@@ -44,12 +44,19 @@ fn main() -> Result<(), failure::Error> {
 
     let mut registry = type_registry::TypeRegistry::new();
     let mut packets = Vec::new();
+    let mut definitions = Vec::new();
 
     for filename in args.inputs.iter().map(std::path::Path::new) {
         debug!("filename {:?}", filename);
         use std::fs::File;
         let file = File::open(filename)?;
-        let packet = schema::Reader::load_packet(file)?;
+        let packet = match schema::Reader::load_document(file)? {
+            schema::ast::Document::Definitions(d) => {
+                definitions.push(flatten::flatten_definitions(&d));
+                continue;
+            }
+            schema::ast::Document::Packet(packet) => packet
+        };
         if packet.type_() == "tmp" {
             continue;
         }
@@ -65,6 +72,10 @@ fn main() -> Result<(), failure::Error> {
 
     match &args.command {
         CodegenCommands::CppCommand(cpp_args) => {
+            for d in &definitions {
+                cpp::Generator::new(cpp_args).generate_definitions(VERSION, d)?;
+                info!("Generated definitions {}", d.name());
+            }
             for packet in packets {
                 let mut generator: Box<dyn Codegen> = Box::new(cpp::Generator::new(cpp_args));
                 generator.generate(VERSION, &packet)?;
@@ -74,8 +85,8 @@ fn main() -> Result<(), failure::Error> {
         // The Rust backend generates all packets at once: they share one
         // module of types.
         CodegenCommands::RustCommand(rust_args) => {
-            rust::generate(VERSION, &packets, rust_args)?;
-            info!("Generated {} packets", packets.len());
+            rust::generate(VERSION, &packets, &definitions, rust_args)?;
+            info!("Generated {} packets and {} definitions", packets.len(), definitions.len());
         }
     }
     Ok(())
