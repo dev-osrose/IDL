@@ -447,6 +447,7 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
     if let Some(ref t) = elem.enum_type() {
         element.set_enum_type(t.clone());
     }
+    element.set_occurs_ref(elem.occurs_ref().clone());
     element
 }
 

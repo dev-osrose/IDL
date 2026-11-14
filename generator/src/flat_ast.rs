@@ -108,7 +108,8 @@ pub struct Element {
     special_read_write: Option<String>,
     bits: Option<u32>,
     occur_is_defined: bool,
-    bitset: Option<Bitset>
+    bitset: Option<Bitset>,
+    occurs_ref: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -379,7 +380,7 @@ impl Element {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
                  is_defined: false, special_read_write, bits,
-                 occur_is_defined: false, bitset }
+                 occur_is_defined: false, bitset, occurs_ref: None }
     }
     
     pub fn name(&self) -> &String {
@@ -436,6 +437,17 @@ impl Element {
 
     pub fn read_write(&self) -> &Option<String> {
         &self.special_read_write
+    }
+
+    /// The earlier element of the same packet or sequence whose value is how
+    /// many items this list has (`occursRef`). Writers write that element as
+    /// the list's length.
+    pub fn occurs_ref(&self) -> &Option<String> {
+        &self.occurs_ref
+    }
+
+    pub fn set_occurs_ref(&mut self, occurs_ref: Option<String>) {
+        self.occurs_ref = occurs_ref;
     }
 
     #[allow(dead_code)]

@@ -128,11 +128,16 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 } else {
                                     "".to_owned()
                                 };
-                                if let Some(ref s) = elem.size_occurs() {
-                                    cg!(self, "{} size;", s);
-                                    self.write_if_else(&format!("!reader.get_{}(size)", s), &[
-                                        "return;"
-                                    ], None)?;
+                                if elem.size_occurs().is_some() || elem.occurs_ref().is_some() {
+                                    if let Some(ref by) = elem.occurs_ref() {
+                                        // The count is an element read before; a negative one is no items.
+                                        cg!(self, "auto size = {};", by);
+                                    } else if let Some(ref s) = elem.size_occurs() {
+                                        cg!(self, "{} size;", s);
+                                        self.write_if_else(&format!("!reader.get_{}(size)", s), &[
+                                            "return;"
+                                        ], None)?;
+                                    }
                                     cg!(self, "while (size-- > 0) {{");
                                     self.indent();
                                     cg!(self, "{} elem;", class_base + elem.type_());
@@ -744,6 +749,19 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     } else {
                         clean_base(elem.type_())
                     };
+                    // The count of an `occursRef` list is written as the list's length.
+                    let counted = packet.contents().iter().find_map(|content| match content {
+                        Element(list) if list.occurs_ref().as_deref() == Some(elem.name().as_str()) => {
+                            Some(list.name().clone())
+                        }
+                        _ => None,
+                    });
+                    if let Some(list) = counted {
+                        self.write_if_else(&format!("!writer.set_{}(static_cast<{}>({}.size()))", base, elem.type_(), list), &[
+                            "return false;"
+                        ], None)?;
+                        continue;
+                    }
                     if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
                         match o {
@@ -794,6 +812,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn pack_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
+        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some()) {
+            return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
+                format!("{}: occursRef is only supported on packet elements", class_name)));
+        }
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
         for elem in packet.elements() {
@@ -860,6 +882,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn read_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
+        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some()) {
+            return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
+                format!("{}: occursRef is only supported on packet elements", class_name)));
+        }
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
         for elem in packet.elements() {
