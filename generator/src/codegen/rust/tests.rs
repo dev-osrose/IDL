@@ -114,6 +114,51 @@ fn a_list_without_a_count_must_be_last() {
 }
 
 #[test]
+fn a_list_can_take_its_count_from_an_earlier_element() {
+    let files = generate(&[r#"<packet ePacketType = "PAKCS_TRADE">
+        <element name = "buy_count" type = "int8_t" />
+        <element name = "sell_count" type = "int8_t" />
+        <element name = "time" type = "uint32_t" />
+        <element name = "buys" type = "uint16_t" occurs = "unbounded" occursRef = "buy_count" />
+        <element name = "sells" type = "uint8_t" occurs = "unbounded" occursRef = "sell_count" />
+    </packet>"#]);
+    contains_in_order(
+        &files["cli_trade.rs"],
+        &[
+            "pub buy_count: i8,",
+            "pub buys: Vec<u16>,",
+            "(self.buys.len() as i8).write(w);",
+            "(self.sells.len() as i8).write(w);",
+            "self.time.write(w);",
+            "for item in &self.buys {",
+            "for item in &self.sells {",
+            "let buy_count: i8 = Wire::read(r)?;",
+            "let buys = r.read_counted(usize::try_from(buy_count).unwrap_or(0))?;",
+            "let sells = r.read_counted(usize::try_from(sell_count).unwrap_or(0))?;",
+            "let mut sample = Self {",
+            "sample.buy_count = sample.buys.len() as i8;",
+        ],
+    );
+}
+
+#[test]
+fn a_count_has_to_be_an_earlier_integer() {
+    for xml in [
+        r#"<packet ePacketType = "PAKCS_TRADE">
+            <element name = "buys" type = "uint16_t" occurs = "unbounded" occursRef = "buy_count" />
+            <element name = "buy_count" type = "int8_t" />
+        </packet>"#,
+        r#"<packet ePacketType = "PAKCS_TRADE">
+            <element name = "buy_count" type = "std::string" />
+            <element name = "buys" type = "uint16_t" occurs = "unbounded" occursRef = "buy_count" />
+        </packet>"#,
+    ] {
+        let error = generate_with(&[xml], &args()).unwrap_err();
+        assert!(error.contains("not an earlier integer element"), "{}", error);
+    }
+}
+
+#[test]
 fn bit_fields_are_packed_low_bit_first_into_whole_bytes() {
     let files = generate(&[r#"<packet ePacketType = "PAKWC_BITS">
         <element name = "a" type = "uint8_t" bits = "3" />

@@ -198,6 +198,7 @@ pub struct Element {
     doc: Option<String>,
     occurs: Option<Occurs>,
     size_occurs: Option<String>,
+    occurs_ref: Option<String>,
     reference: bool,
     special_read_write: Option<String>,
     enum_type: Option<String>,
@@ -384,6 +385,7 @@ impl Element {
             type_: type_,
             occurs: occurs,
             size_occurs: size_occurs,
+            occurs_ref: None,
             doc: None,
             init: init,
             reference: reference,
@@ -415,6 +417,15 @@ impl Element {
 
     pub fn init(&self) -> &ElementInitValue {
         &self.init
+    }
+
+    /// The earlier element whose value is how many items this list has.
+    pub fn occurs_ref(&self) -> &Option<String> {
+        &self.occurs_ref
+    }
+
+    pub fn set_occurs_ref(&mut self, occurs_ref: Option<String>) {
+        self.occurs_ref = occurs_ref;
     }
 
     pub fn size_occurs(&self) -> &Option<String> {
