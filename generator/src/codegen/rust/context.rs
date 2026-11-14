@@ -169,7 +169,7 @@ impl<'a> Ctx<'a> {
             return Err(format!("{}: cannot resolve the element count {:?}", context, count));
         }
         if count.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-            return Ok(format!("{}::{}", self.args.consts_path, count));
+            return Ok(format!("{}::{} as usize", self.args.consts_path, count));
         }
         Err(format!("{}: cannot resolve the element count {:?}", context, count))
     }

@@ -165,6 +165,9 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
                 flatten_(search_path, &packet, ctx)?;
             },
             ast::PacketContent::SimpleType(ref simple) => {
+                if simple.scoped() {
+                    return Err(::failure::err_msg(format!("{}: scoped enumerations are only supported in <definitions>", simple.name())));
+                }
                 let simple = flatten_simple(simple);
                 ctx.add_content(Simple(simple));
             },
@@ -182,8 +185,22 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
     Ok(())
 }
 
+/// Flattens definitions. They stand alone: there is nothing to include and
+/// nothing to prune.
+pub fn flatten_definitions(d: &ast::Definitions) -> flat_ast::Definitions {
+    let mut out = flat_ast::Definitions::new(d.name().clone(), d.doc().clone());
+    for content in d.contents() {
+        out.add_content(match content {
+            ast::DefinitionsContent::SimpleType(simple) => flat_ast::DefinitionsContent::Simple(flatten_simple(simple)),
+            ast::DefinitionsContent::Constant(constant) => flat_ast::DefinitionsContent::Constant(constant.clone())
+        });
+    }
+    out
+}
+
 fn flatten_simple(simple: &ast::SimpleType) -> flat_ast::SimpleType {
     let mut type_ = flat_ast::SimpleType::new(simple.name().clone(), simple.doc().clone());
+    type_.set_scoped(simple.scoped());
     let mut enum_id = 0i64;
     for content in simple.contents() {
         match content {

@@ -41,7 +41,7 @@ impl<'a> Ctx<'a> {
             .ok_or(format!("{}: restriction base {:?} is not an integer", context, base))?;
         let storage = p.rust;
         writeln!(out, "/// Enumeration written as `{}`. Values outside the named ones are kept as is.", storage).unwrap();
-        writeln!(out, "#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]\npub struct {}(pub {});\n", name, storage).unwrap();
+        writeln!(out, "#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]\npub struct {}(pub {});\n", name, storage).unwrap();
         writeln!(out, "impl {} {{", name).unwrap();
         let mut seen = BTreeSet::new();
         let mut by_value: BTreeMap<i64, String> = BTreeMap::new();
@@ -60,7 +60,9 @@ impl<'a> Ctx<'a> {
                 return Err(format!("{}: {} = {} does not fit in {}", context, enumerator, value, storage));
             }
             writeln!(out, "    pub const {}: Self = Self(({}) as {});", constant, value, storage).unwrap();
-            by_value.entry(*value).or_insert(constant);
+            // Of several names for one value, the last one declared names it:
+            // the earlier ones are markers, such as the start of a range.
+            by_value.insert(*value, constant);
         }
         writeln!(out, "\n    /// Name of the value, if it is a defined one.").unwrap();
         writeln!(out, "    pub fn name(self) -> Option<&'static str> {{\n        match self.0 as i64 {{").unwrap();

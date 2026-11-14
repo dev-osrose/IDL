@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::fmt::Debug;
-use ::ast::Packet;
+use ::ast::{Document, Packet};
 use ::error::ParseError;
 use ::attributes::Attributes;
 use ::xml::reader::{EventReader,XmlEvent};
@@ -12,7 +12,17 @@ pub struct Reader {
 }
 
 impl Reader {
+    /// Reads a packet. Definitions are an error here: they are not part of
+    /// any packet.
     pub fn load_packet<R: Read+ 'static>(r: R) -> Result<Packet, ::failure::Error> {
+        match Self::load_document(r)? {
+            Document::Packet(packet) => Ok(packet),
+            Document::Definitions(d) => Err(ParseError::new(format!("{}: definitions cannot be part of a packet", d.name())).into())
+        }
+    }
+
+    /// Reads a packet, or definitions (`<definitions>`).
+    pub fn load_document<R: Read+ 'static>(r: R) -> Result<Document, ::failure::Error> {
         let mut reader = Reader::new(Box::new(r));
         reader.read()
     }
@@ -29,24 +39,33 @@ impl Reader {
         }
     }
 
-    fn read(&mut self) -> Result<Packet, ::failure::Error> {
+    fn read(&mut self) -> Result<Document, ::failure::Error> {
         if let XmlEvent::StartDocument{..} = self.next()? {
             let mut packet = Packet::new("tmp".to_string());
+            let packet_of = |f: fn(&mut Reader, Attributes) -> Result<Packet, ParseError>| {
+                move |r: &mut Reader, attrs: Attributes| f(r, attrs).map(Document::Packet)
+            };
+            let definitions = |r: &mut Reader, attrs: Attributes| ::parse::parse_definitions(r, attrs).map(Document::Definitions);
             for item in self.map(&[
-                                ("packet", &::parse::parse_packet),
-                                ("simpleType", &::parse::parse_simple_type),
-                                ("complexType", &::parse::parse_complex_type),
-                                ("include", &::parse::parse_include),
-                                ("includeXml", &::parse::parse_include_xml)
+                                ("packet", &packet_of(::parse::parse_packet)),
+                                ("definitions", &definitions),
+                                ("simpleType", &packet_of(::parse::parse_simple_type)),
+                                ("complexType", &packet_of(::parse::parse_complex_type)),
+                                ("include", &packet_of(::parse::parse_include)),
+                                ("includeXml", &packet_of(::parse::parse_include_xml))
             ])? {
+                let item = match item {
+                    Document::Definitions(d) => return Ok(Document::Definitions(d)),
+                    Document::Packet(item) => item
+                };
                 if item.type_() != "tmp" {
-                    return Ok(item);
+                    return Ok(Document::Packet(item));
                 }
                 for content in item.into_contents() {
                     packet.add_content(content);
                 }
             }
-            return Ok(packet);
+            return Ok(Document::Packet(packet));
         }
         Err(ParseError::new("Expecting startDocument").into())
     }

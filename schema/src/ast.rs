@@ -16,11 +16,95 @@ pub enum PacketContent {
     Element(Element)
 }
 
+/// What an XML file holds: a packet, or definitions that are not part of a
+/// packet (`<definitions>`).
+#[derive(Debug)]
+pub enum Document {
+    Packet(Packet),
+    Definitions(Definitions)
+}
+
+/// Types and constants shared by everything, generated on their own rather
+/// than as part of a packet: `<definitions name="...">`.
+#[derive(Debug)]
+pub struct Definitions {
+    name: String,
+    contents: Vec<DefinitionsContent>,
+    doc: Option<String>
+}
+
+#[derive(Debug)]
+pub enum DefinitionsContent {
+    SimpleType(SimpleType),
+    Constant(Constant)
+}
+
+/// A named value: `<constant name="MAX_STAT" type="uint32_t" value="300"/>`.
+#[derive(Debug, Clone)]
+pub struct Constant {
+    name: String,
+    type_: String,
+    value: String,
+    doc: Option<String>
+}
+
+impl Definitions {
+    pub fn new(name: String) -> Self {
+        Definitions { name, contents: Vec::new(), doc: None }
+    }
+
+    /// The name of the generated files.
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn contents(&self) -> &[DefinitionsContent] {
+        &self.contents
+    }
+
+    pub fn add_content(&mut self, content: DefinitionsContent) {
+        self.contents.push(content);
+    }
+
+    pub fn doc(&self) -> &Option<String> {
+        &self.doc
+    }
+
+    pub fn set_doc(&mut self, doc: String) {
+        self.doc = Some(doc);
+    }
+}
+
+impl Constant {
+    pub fn new(name: String, type_: String, value: String, doc: Option<String>) -> Self {
+        Constant { name, type_, value, doc }
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    /// The C++ type, one of the integer types, `float` or `double`.
+    pub fn type_(&self) -> &String {
+        &self.type_
+    }
+
+    /// The value as written: a decimal or `0x` integer, or a decimal number.
+    pub fn value(&self) -> &String {
+        &self.value
+    }
+
+    pub fn doc(&self) -> &Option<String> {
+        &self.doc
+    }
+}
+
 #[derive(Debug)]
 pub struct SimpleType {
     name: String,
     contents: Vec<SimpleTypeContent>,
-    doc: Option<String>
+    doc: Option<String>,
+    scoped: bool
 }
 
 #[derive(Debug)]
@@ -367,8 +451,18 @@ impl SimpleType {
         SimpleType {
             name: name,
             contents: Vec::new(),
-            doc: None
+            doc: None,
+            scoped: false
         }
+    }
+
+    /// A scoped enumeration (`enum class` in C++).
+    pub fn scoped(&self) -> bool {
+        self.scoped
+    }
+
+    pub fn set_scoped(&mut self, scoped: bool) {
+        self.scoped = scoped;
     }
 
     pub fn add_content(&mut self, content: SimpleTypeContent) {
