@@ -61,7 +61,7 @@ pub struct CppArgs {
 #[cfg(test)]
 mod tests {
     use crate::{flat_ast::Packet, writer::Writer};
-    use super::{codegen_definitions, codegen_header};
+    use super::{codegen_definitions, codegen_header, codegen_source};
 
     struct StringWriter {
         output: String
@@ -96,6 +96,46 @@ mod tests {
         let mut codegen = codegen_header::CodeHeaderGenerator::new(&mut writer, "0".to_string());
         codegen.generate(packet)?;
         Ok(writer.into().into())
+    }
+
+    fn call_source(xml: &str) -> String {
+        let packet = match ::schema::Reader::load_document(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap() {
+            ::schema::ast::Document::Packet(packet) => packet,
+            other => panic!("{:?}", other),
+        };
+        let packet = ::flatten::flatten(std::path::Path::new("."), &packet).unwrap();
+        let packet = ::graph_passes::run(packet).unwrap();
+        let mut writer = Writer::new(StringWriter::new());
+        codegen_source::CodeSourceGenerator::new(&mut writer).generate(&packet).unwrap();
+        writer.into().into()
+    }
+
+    #[test]
+    fn an_enum_in_a_union_s_bitfields_is_named_with_its_packet() {
+        let xml = r#"<packet ePacketType = "PAKCS_HOTBAR_SET_ICON_REQ">
+            <complexType name = "HotbarIcon">
+                <choice>
+                    <sequence inline = "true">
+                        <element name = "icon_type" type = "HotbarIconType" bits = "5" />
+                        <element name = "icon_id" type = "uint16_t" bits = "11" />
+                    </sequence>
+                    <element name = "icon_data" type = "uint16_t" default = "0" />
+                </choice>
+            </complexType>
+            <simpleType name = "HotbarIconType">
+                <restriction base = "uint16_t">
+                    <enumeration value = "ITEM" id = "1" />
+                </restriction>
+            </simpleType>
+            <element name = "icon" type = "HotbarIcon" />
+        </packet>"#;
+        let source = call_source(xml);
+        // Outside the class, a return type is not looked up in it.
+        assert!(
+            source.contains("CliHotbarSetIconReq::HotbarIconType CliHotbarSetIconReq::HotbarIcon::get_icon_type() const {"),
+            "{}",
+            source
+        );
     }
 
     #[test]

@@ -345,7 +345,15 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                                 if edge.1.inline {
                                     let name = &graph.nodes[edge.1.to.0].name;
                                     if let Some(seq) = sequences.remove(name) {
-                                        for s in seq {
+                                        for mut s in seq {
+                                            // A type defined in the packet is named with it.
+                                            for elem in s.elements_mut() {
+                                                if let Ok(n) = graph.get_node(elem.type_()) {
+                                                    if graph.nodes[n.0].is_defined {
+                                                        elem.set_is_defined();
+                                                    }
+                                                }
+                                            }
                                             cc.add_inline_seqs(name.clone(), s);
                                         }
                                     }
