@@ -109,7 +109,8 @@ pub struct Element {
     bits: Option<u32>,
     occur_is_defined: bool,
     bitset: Option<Bitset>,
-    occurs_ref: Option<String>
+    occurs_ref: Option<String>,
+    occurs_bits: Option<(String, Option<String>)>
 }
 
 #[derive(Debug, Clone)]
@@ -380,7 +381,7 @@ impl Element {
         Element{ name, init, type_, id, occurs, size_occurs, doc
                  , anonymous, reference, enum_type: None,
                  is_defined: false, special_read_write, bits,
-                 occur_is_defined: false, bitset, occurs_ref: None }
+                 occur_is_defined: false, bitset, occurs_ref: None, occurs_bits: None }
     }
     
     pub fn name(&self) -> &String {
@@ -448,6 +449,33 @@ impl Element {
 
     pub fn set_occurs_ref(&mut self, occurs_ref: Option<String>) {
         self.occurs_ref = occurs_ref;
+    }
+
+    /// The earlier element of the same packet whose set bits under the mask
+    /// (`occursMask`, as written) are how many items this list has
+    /// (`occursBits`). Writers write exactly that many.
+    pub fn occurs_bits(&self) -> &Option<(String, Option<String>)> {
+        &self.occurs_bits
+    }
+
+    /// The mask of an `occursBits` list as a number, or why it is not one.
+    pub fn occurs_mask(&self) -> Option<Result<u64, String>> {
+        let (_, mask) = self.occurs_bits.as_ref()?;
+        Some(match mask {
+            None => Err(format!("{}: occursBits needs an occursMask", self.name)),
+            Some(m) => {
+                let m = m.trim();
+                let parsed = match m.strip_prefix("0x").or_else(|| m.strip_prefix("0X")) {
+                    Some(hex) => u64::from_str_radix(hex, 16),
+                    None => m.parse(),
+                };
+                parsed.map_err(|_| format!("{}: occursMask {:?} is not a number", self.name, m))
+            }
+        })
+    }
+
+    pub fn set_occurs_bits(&mut self, occurs_bits: Option<(String, Option<String>)>) {
+        self.occurs_bits = occurs_bits;
     }
 
     #[allow(dead_code)]

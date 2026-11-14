@@ -139,6 +139,30 @@ mod tests {
     }
 
     #[test]
+    fn a_list_counted_by_bits_reads_and_writes_that_many() {
+        let xml = r#"<packet ePacketType = "PAKWC_MOB_CHAR">
+            <element name = "status_flag" type = "uint32_t" />
+            <element name = "status_values" type = "int16_t" occurs = "unbounded" occursBits = "status_flag" occursMask = "0x3D0" />
+            <element name = "name" type = "std::string" />
+        </packet>"#;
+        let source = call_source(xml);
+        let wanted = [
+            // Read: the set bits of the flag under the mask.
+            "auto size = std::bitset<64>(static_cast<uint64_t>(status_flag) & 0x3d0).count();",
+            "while (size-- > 0) {",
+            // Write: exactly that many, missing ones as defaults.
+            "const size_t count = std::bitset<64>(static_cast<uint64_t>(status_flag) & 0x3d0).count();",
+            "for (size_t index = 0; index < count; ++index) {",
+            "!writer.set_int16_t(index < status_values.size() ? status_values[index] : int16_t{})",
+        ];
+        let mut rest = source.as_str();
+        for needle in wanted {
+            let at = rest.find(needle).unwrap_or_else(|| panic!("{:?} not found in order in:\n{}", needle, source));
+            rest = &rest[at + needle.len()..];
+        }
+    }
+
+    #[test]
     fn empty_packet() {
         let packet = Packet::new("PAKCS_PACKET".to_owned(), None);
         let result = call_header(&packet);

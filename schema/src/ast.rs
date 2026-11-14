@@ -199,6 +199,8 @@ pub struct Element {
     occurs: Option<Occurs>,
     size_occurs: Option<String>,
     occurs_ref: Option<String>,
+    occurs_bits: Option<String>,
+    occurs_mask: Option<String>,
     reference: bool,
     special_read_write: Option<String>,
     enum_type: Option<String>,
@@ -386,6 +388,8 @@ impl Element {
             occurs: occurs,
             size_occurs: size_occurs,
             occurs_ref: None,
+            occurs_bits: None,
+            occurs_mask: None,
             doc: None,
             init: init,
             reference: reference,
@@ -426,6 +430,21 @@ impl Element {
 
     pub fn set_occurs_ref(&mut self, occurs_ref: Option<String>) {
         self.occurs_ref = occurs_ref;
+    }
+
+    /// The earlier element whose set bits under `occurs_mask` are how many
+    /// items this list has (`occursBits`, `occursMask`).
+    pub fn occurs_bits(&self) -> &Option<String> {
+        &self.occurs_bits
+    }
+
+    pub fn occurs_mask(&self) -> &Option<String> {
+        &self.occurs_mask
+    }
+
+    pub fn set_occurs_bits(&mut self, by: Option<String>, mask: Option<String>) {
+        self.occurs_bits = by;
+        self.occurs_mask = mask;
     }
 
     pub fn size_occurs(&self) -> &Option<String> {

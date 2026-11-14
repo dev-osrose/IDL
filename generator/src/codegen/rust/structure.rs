@@ -29,6 +29,10 @@ enum Shape {
     /// An integer that holds how many items field `list` has: read as it
     /// comes, written as the list's length.
     Count { list: String },
+    /// `Vec<T>` with as many items as the earlier field `by` has bits set
+    /// under `mask` (`occursBits`, `occursMask`); written as exactly that
+    /// many.
+    Masked { by: String, mask: u64 },
     Array,
     /// Part of a run of bit fields: offset and width within the run.
     Bits { offset: u32, width: u32, run: usize },
@@ -96,6 +100,39 @@ impl<'a> Ctx<'a> {
                 continue;
             }
             in_run = false;
+
+            if let Some((by, _)) = element.occurs_bits() {
+                if !matches!(element.occurs(), Some(Occurs::Unbounded))
+                    || element.size_occurs().is_some()
+                    || element.occurs_ref().is_some()
+                {
+                    return Err(format!(
+                        "{}: occursBits needs occurs=\"unbounded\", no occursSize and no occursRef",
+                        context
+                    ));
+                }
+                let mask = element.occurs_mask().unwrap().map_err(|e| format!("{}: {}", context, e))?;
+                let by = field_name(by);
+                elements[..index]
+                    .iter()
+                    .position(|e| field_name(e.name()) == by)
+                    .filter(|at| {
+                        let e = &elements[*at];
+                        e.occurs().is_none() && e.bits().is_none() && prim(e.type_()).is_some_and(|p| p.integer)
+                    })
+                    .ok_or(format!(
+                        "{}: occursBits {:?} is not an earlier integer element",
+                        context, by
+                    ))?;
+                fields.push(Field {
+                    name,
+                    ty: format!("Vec<{}>", base),
+                    shape: Shape::Masked { by, mask },
+                    default: "Vec::new()".into(),
+                    doc,
+                });
+                continue;
+            }
 
             if let Some(by) = element.occurs_ref() {
                 if !matches!(element.occurs(), Some(Occurs::Unbounded)) || element.size_occurs().is_some() {
@@ -243,6 +280,12 @@ impl<'a> Ctx<'a> {
                 Shape::Counted { .. } => {
                     writeln!(out, "        for item in &self.{} {{\n            item.write(w);\n        }}", f).unwrap()
                 }
+                Shape::Masked { by, mask } => writeln!(
+                    out,
+                    "        for index in 0..((self.{} as u64) & {:#x}).count_ones() as usize {{\n            self.{}.get(index).cloned().unwrap_or_default().write(w);\n        }}",
+                    by, mask, f
+                )
+                .unwrap(),
                 Shape::List { count } => {
                     if let Some(count) = count {
                         writeln!(out, "        (self.{}.len() as {}).write(w);", f, count).unwrap();
@@ -271,6 +314,12 @@ impl<'a> Ctx<'a> {
             match &field.shape {
                 Shape::Scalar => writeln!(out, "        let {} = Wire::read(r)?;", f).unwrap(),
                 Shape::Count { .. } => writeln!(out, "        let {}: {} = Wire::read(r)?;", f, field.ty).unwrap(),
+                Shape::Masked { by, mask } => writeln!(
+                    out,
+                    "        let {} = r.read_counted((({} as u64) & {:#x}).count_ones() as usize)?;",
+                    f, by, mask
+                )
+                .unwrap(),
                 Shape::Counted { by } => {
                     // A negative count is no items.
                     writeln!(out, "        let {} = r.read_counted(usize::try_from({}).unwrap_or(0))?;", f, by).unwrap()
@@ -294,15 +343,22 @@ impl<'a> Ctx<'a> {
         writeln!(out, "        Ok(Self {{ {} }})\n    }}\n}}\n", names.join(", ")).unwrap();
 
         if let Some(feature) = self.sample_feature() {
-            // A count has to match its list to survive a round trip.
-            let counts: Vec<(&str, &str, &str)> = fields
+            // A count has to match its list to survive a round trip; so does
+            // a list counted by the bits of a flag.
+            let fixes: Vec<String> = fields
                 .iter()
                 .filter_map(|field| match &field.shape {
-                    Shape::Count { list } => Some((field.name.as_str(), list.as_str(), field.ty.as_str())),
+                    Shape::Count { list } => {
+                        Some(format!("sample.{} = sample.{}.len() as {};", field.name, list, field.ty))
+                    }
+                    Shape::Masked { by, mask } => Some(format!(
+                        "sample.{} = (0..((sample.{} as u64) & {:#x}).count_ones()).map(|_| Sample::sample(g)).collect();",
+                        field.name, by, mask
+                    )),
                     _ => None,
                 })
                 .collect();
-            let open = if counts.is_empty() { "Self {" } else { "let mut sample = Self {" };
+            let open = if fixes.is_empty() { "Self {" } else { "let mut sample = Self {" };
             writeln!(
                 out,
                 "#[cfg(feature = \"{}\")]\nimpl Sample for {} {{\n    fn sample(g: &mut Gen) -> Self {{\n        {}",
@@ -315,18 +371,20 @@ impl<'a> Ctx<'a> {
                     Shape::Scalar | Shape::Array | Shape::Count { .. } => {
                         writeln!(out, "            {}: Sample::sample(g),", f).unwrap()
                     }
-                    Shape::List { .. } | Shape::Counted { .. } => writeln!(out, "            {}: g.list(),", f).unwrap(),
+                    Shape::List { .. } | Shape::Counted { .. } | Shape::Masked { .. } => {
+                        writeln!(out, "            {}: g.list(),", f).unwrap()
+                    }
                     Shape::Bits { width, .. } => {
                         writeln!(out, "            {}: (g.next_u64() & {:#x}) as {},", f, mask(*width), field.ty).unwrap()
                     }
                 }
             }
-            if counts.is_empty() {
+            if fixes.is_empty() {
                 writeln!(out, "        }}\n    }}\n}}\n").unwrap();
             } else {
                 writeln!(out, "        }};").unwrap();
-                for (count, list, ty) in &counts {
-                    writeln!(out, "        sample.{} = sample.{}.len() as {};", count, list, ty).unwrap();
+                for fix in &fixes {
+                    writeln!(out, "        {}", fix).unwrap();
                 }
                 writeln!(out, "        sample\n    }}\n}}\n").unwrap();
             }

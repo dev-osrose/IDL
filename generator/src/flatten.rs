@@ -448,6 +448,7 @@ fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast:
         element.set_enum_type(t.clone());
     }
     element.set_occurs_ref(elem.occurs_ref().clone());
+    element.set_occurs_bits(elem.occurs_bits().clone().map(|by| (by, elem.occurs_mask().clone())));
     element
 }
 

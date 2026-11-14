@@ -29,6 +29,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
 
     pub fn generate(&mut self, packet: &Packet) -> Result<()> {
         cg!(self, r#"#include "{}.h""#, packet.filename());
+        let has_masked = packet.contents().iter().any(|content| {
+            matches!(content, PacketContent::Element(elem) if elem.occurs_bits().is_some())
+        });
+        if has_masked {
+            cg!(self, "#include <bitset>");
+        }
         cg!(self);
         cg!(self, "using namespace RoseCommon;");
         cg!(self, "using namespace RoseCommon::Packet;");
@@ -128,8 +134,12 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                                 } else {
                                     "".to_owned()
                                 };
-                                if elem.size_occurs().is_some() || elem.occurs_ref().is_some() {
-                                    if let Some(ref by) = elem.occurs_ref() {
+                                if elem.size_occurs().is_some() || elem.occurs_ref().is_some() || elem.occurs_bits().is_some() {
+                                    if let Some((ref by, _)) = elem.occurs_bits() {
+                                        // As many as the earlier flag has bits set under the mask.
+                                        let mask = masked(elem)?;
+                                        cg!(self, "auto size = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
+                                    } else if let Some(ref by) = elem.occurs_ref() {
                                         // The count is an element read before; a negative one is no items.
                                         cg!(self, "auto size = {};", by);
                                     } else if let Some(ref s) = elem.size_occurs() {
@@ -762,6 +772,24 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         ], None)?;
                         continue;
                     }
+                    if let Some((ref by, _)) = elem.occurs_bits() {
+                        // Exactly as many as the flag says, missing ones as defaults.
+                        let mask = masked(elem)?;
+                        cg!(self, "{{");
+                        self.indent();
+                        cg!(self, "const size_t count = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
+                        cg!(self, "for (size_t index = 0; index < count; ++index) {{");
+                        self.indent();
+                        let list = elem.name();
+                        self.write_if_else(&format!("!writer.set_{}(index < {}.size() ? {}[index] : {}{{}})", base, list, list, elem.type_()), &[
+                            "return false;"
+                        ], None)?;
+                        self.dedent();
+                        cg!(self, "}}");
+                        self.dedent();
+                        cg!(self, "}}");
+                        continue;
+                    }
                     if let Some(ref o) = elem.occurs() {
                         use ::flat_ast::Occurs::*;
                         match o {
@@ -812,9 +840,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn pack_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
-        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some()) {
+        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some() || elem.occurs_bits().is_some()) {
             return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
-                format!("{}: occursRef is only supported on packet elements", class_name)));
+                format!("{}: occursRef and occursBits are only supported on packet elements", class_name)));
         }
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
@@ -882,9 +910,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
     }
 
     fn read_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
-        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some()) {
+        if packet.elements().iter().any(|elem| elem.occurs_ref().is_some() || elem.occurs_bits().is_some()) {
             return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
-                format!("{}: occursRef is only supported on packet elements", class_name)));
+                format!("{}: occursRef and occursBits are only supported on packet elements", class_name)));
         }
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
@@ -1182,6 +1210,15 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
         cg!(self, "}}");
         Ok(())
+    }
+}
+
+/// The mask of an `occursBits` list, or the error for a missing or bad one.
+fn masked(elem: &Element) -> Result<u64> {
+    match elem.occurs_mask() {
+        Some(Ok(mask)) => Ok(mask),
+        Some(Err(e)) => Err(::std::io::Error::new(::std::io::ErrorKind::Other, e)),
+        None => Err(::std::io::Error::new(::std::io::ErrorKind::Other, format!("{}: not an occursBits list", elem.name()))),
     }
 }
 

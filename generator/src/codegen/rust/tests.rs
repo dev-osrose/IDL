@@ -158,6 +158,64 @@ fn a_count_has_to_be_an_earlier_integer() {
     }
 }
 
+const MASKED: &str = r#"<packet ePacketType = "PAKWC_MOB_CHAR">
+    <element name = "status_flag" type = "uint32_t" />
+    <element name = "status_values" type = "int16_t" occurs = "unbounded" occursBits = "status_flag" occursMask = "0x3D0" />
+    <element name = "name" type = "std::string" />
+</packet>"#;
+
+#[test]
+fn a_list_can_take_its_count_from_the_set_bits_of_an_earlier_element() {
+    let files = generate(&[MASKED]);
+    contains_in_order(
+        &files["srv_mob_char.rs"],
+        &[
+            "pub status_flag: u32,",
+            "pub status_values: Vec<i16>,",
+            "self.status_flag.write(w);",
+            // Exactly as many as the flag says: missing ones as defaults.
+            "for index in 0..((self.status_flag as u64) & 0x3d0).count_ones() as usize {",
+            "self.status_values.get(index).cloned().unwrap_or_default().write(w);",
+            "self.name.write(w);",
+            "let status_flag = Wire::read(r)?;",
+            "let status_values = r.read_counted(((status_flag as u64) & 0x3d0).count_ones() as usize)?;",
+            "let name = Wire::read(r)?;",
+            "let mut sample = Self {",
+            "sample.status_values = (0..((sample.status_flag as u64) & 0x3d0).count_ones()).map(|_| Sample::sample(g)).collect();",
+        ],
+    );
+}
+
+#[test]
+fn a_list_counted_by_bits_needs_an_earlier_integer_and_a_mask() {
+    for (xml, wanted) in [
+        (
+            r#"<packet ePacketType = "PAKWC_MOB_CHAR">
+                <element name = "values" type = "int16_t" occurs = "unbounded" occursBits = "flag" occursMask = "0x10" />
+                <element name = "flag" type = "uint32_t" />
+            </packet>"#,
+            "not an earlier integer element",
+        ),
+        (
+            r#"<packet ePacketType = "PAKWC_MOB_CHAR">
+                <element name = "flag" type = "uint32_t" />
+                <element name = "values" type = "int16_t" occurs = "unbounded" occursBits = "flag" />
+            </packet>"#,
+            "occursMask",
+        ),
+        (
+            r#"<packet ePacketType = "PAKWC_MOB_CHAR">
+                <element name = "flag" type = "uint32_t" />
+                <element name = "values" type = "int16_t" occurs = "unbounded" occursBits = "flag" occursMask = "lots" />
+            </packet>"#,
+            "occursMask",
+        ),
+    ] {
+        let error = generate_with(&[xml], &args()).unwrap_err();
+        assert!(error.contains(wanted), "{}", error);
+    }
+}
+
 #[test]
 fn bit_fields_are_packed_low_bit_first_into_whole_bytes() {
     let files = generate(&[r#"<packet ePacketType = "PAKWC_BITS">
