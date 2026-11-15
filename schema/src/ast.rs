@@ -13,7 +13,9 @@ pub enum PacketContent {
     Include(String, bool),
     SimpleType(SimpleType),
     ComplexType(ComplexType),
-    Element(Element)
+    Element(Element),
+    /// A `<choice selector="...">` among the elements of the packet.
+    Choice(Choice)
 }
 
 /// What an XML file holds: a packet, or definitions that are not part of a
@@ -166,7 +168,9 @@ pub struct Sequence {
     size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
     doc: Option<String>,
-    inline: bool
+    inline: bool,
+    case: Option<String>,
+    default: bool
 }
 
 #[derive(Debug)]
@@ -181,7 +185,9 @@ pub struct Choice {
     occurs: Option<Occurs>,
     size_occurs: Option<String>,
     contents: Vec<SequenceContent>,
-    doc: Option<String>
+    doc: Option<String>,
+    selector: Option<String>,
+    name: Option<String>
 }
 
 #[derive(Debug, Clone)]
@@ -308,8 +314,27 @@ impl Sequence {
             occurs: occurs,
             size_occurs: size_occurs,
             doc: doc,
-            inline
+            inline,
+            case: None,
+            default: false
         }
+    }
+
+    /// The value of the selector this branch of a `<choice selector>` is
+    /// for (`case`).
+    pub fn case(&self) -> &Option<String> {
+        &self.case
+    }
+
+    /// Whether this branch of a `<choice selector>` is for every value no
+    /// other branch is for (`default="true"`).
+    pub fn default(&self) -> bool {
+        self.default
+    }
+
+    pub fn set_case(&mut self, case: Option<String>, default: bool) {
+        self.case = case;
+        self.default = default;
     }
 
     pub fn add_content(&mut self, content: SequenceContent) {
@@ -351,8 +376,26 @@ impl Choice {
             contents: Vec::new(),
             occurs: occurs,
             size_occurs: size_occurs,
-            doc: doc
+            doc: doc,
+            selector: None,
+            name: None
         }
+    }
+
+    /// The earlier element whose value picks the one branch that is there
+    /// (`selector`). Without one, the choice is a union.
+    pub fn selector(&self) -> &Option<String> {
+        &self.selector
+    }
+
+    /// The name of the element a `<choice selector>` stands for.
+    pub fn name(&self) -> &Option<String> {
+        &self.name
+    }
+
+    pub fn set_selector(&mut self, selector: Option<String>, name: Option<String>) {
+        self.selector = selector;
+        self.name = name;
     }
 
     pub fn add_content(&mut self, content: SequenceContent) {

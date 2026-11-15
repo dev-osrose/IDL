@@ -14,7 +14,10 @@
 //! * consecutive `bits` elements of a sequence are packed, least significant
 //!   bit first, into the smallest whole number of bytes;
 //! * a `<choice>` is a union, written as its widest plain unsigned integer
-//!   member; the members are views onto parts of that integer.
+//!   member; the members are views onto parts of that integer;
+//! * a `<choice selector="...">` is an enum with a variant per branch, the
+//!   bytes of the variant's fields following those of the earlier selector,
+//!   which is written as the value the variant is for (see `selected.rs`).
 //!
 //! The generated code does not depend on a serialization library. It calls a
 //! small runtime that the crate using it provides, at `--runtime-path`:
@@ -25,7 +28,8 @@
 //!                implemented for the integers, f32, f64 and BString (NUL terminated)
 //! Writer         put_bytes(&[u8]), put_bits(u64, bytes)
 //! Reader         take(n), get_bits(bytes), read_to_end(), read_counted(n), read_array()
-//! WireError
+//! WireError      with fn unknown_case(what: &'static str, value: i64) -> WireError
+//!                (only for selector choices without a default branch)
 //! trait Packet   Wire + const TYPE: PacketType, const NAME: &'static str
 //! PacketType     one associated constant per packet type name
 //! ```
@@ -39,15 +43,21 @@
 
 mod context;
 mod definitions;
+mod encode;
 mod files;
 mod names;
 mod prim;
+mod selected;
 mod simple;
 mod structure;
 mod union;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_roundtrip;
+#[cfg(test)]
+mod tests_selected;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -156,6 +166,16 @@ pub(crate) fn generate_files(
         // The types of the packet's own fields are reachable from its module,
         // so that using a packet needs only its module.
         let mut own: Vec<&str> = elements.iter().filter_map(|e| ctx.lookup(e.type_()).map(|(name, _)| name)).collect();
+        // So are those of the branches of its selector choices.
+        for e in &elements {
+            if let Some((_, Def::Complex(c))) = ctx.lookup(e.type_()) {
+                if let ComplexTypeContent::Selected(selected) = c.content() {
+                    for case in selected.cases() {
+                        own.extend(case.elements().iter().filter_map(|e| ctx.lookup(e.type_()).map(|(name, _)| name)));
+                    }
+                }
+            }
+        }
         own.sort_unstable();
         own.dedup();
         match own.as_slice() {
@@ -217,6 +237,7 @@ impl<'a> Ctx<'a> {
                 }
                 self.union(out, complex.name(), complex.doc(), choice, context)
             }
+            ComplexTypeContent::Selected(selected) => self.selected(out, complex.name(), complex.doc(), selected, context),
             ComplexTypeContent::Empty => self.structure(out, complex.name(), complex.doc(), &[], context),
         }
     }

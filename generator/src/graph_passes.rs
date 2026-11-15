@@ -223,6 +223,7 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 match c.content() {
                     Seq(s) => graph.add_node(c.name(), TySeq, c.name(), s.inline()),
                     Choice(_) => graph.add_node(c.name(), TyChoice, c.name(), false),
+                    Selected(_) => graph.add_node(c.name(), TySeq, c.name(), false),
                     Empty => graph.add_node(c.name(), TyEmpty, c.name(), false)
                 }
             },
@@ -242,6 +243,18 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                 match c.content() {
                     Seq(seq) => graph.add_edges(node, seq.elements()),
                     Choice(choice) => graph.add_edges(node, choice.elements()),
+                    Selected(selected) => {
+                        for case in selected.cases() {
+                            graph.add_edges(node, case.elements());
+                            for elem in case.elements() {
+                                match elem.occurs() {
+                                    Some(self::Occurs::Unbounded) => vector = true,
+                                    Some(self::Occurs::Num(_)) => array = true,
+                                    _ => {}
+                                }
+                            }
+                        }
+                    },
                     _ => {}
                 }
             },
@@ -333,6 +346,21 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
         }
     });
 
+    // The selectors of the selector choices of each sequence: the C++
+    // backend reads and writes them like elements of a packet.
+    let mut seq_selectors = ::std::collections::HashMap::<String, HashSet<String>>::new();
+    for content in packet.contents() {
+        if let PacketContent::Complex(c) = content {
+            if let ComplexTypeContent::Seq(s) = c.content() {
+                for elem in s.elements() {
+                    if let Some(selected) = ::selected::selected_type(&packet, elem.type_()) {
+                        seq_selectors.entry(c.name().clone()).or_default().insert(selected.selector().clone());
+                    }
+                }
+            }
+        }
+    }
+
     for content in packet.contents_mut() {
         match content {
             PacketContent::Complex(ref mut c) => {
@@ -361,6 +389,14 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                             }
                         }
                     },
+                    ComplexTypeContent::Selected(ref mut selected) => {
+                        // Branches are read and written like the elements of a packet.
+                        for case in selected.cases_mut() {
+                            for elem in case.elements_mut() {
+                                mark_element(elem, &graph, &enums);
+                            }
+                        }
+                    },
                     ComplexTypeContent::Seq(ref mut cc) => {
                         for elem in cc.elements_mut() {
                             let is_defined = match elem.occurs() {
@@ -380,6 +416,9 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                                     elem.set_is_defined();
                                 }
                             }
+                            if seq_selectors.get(&name).map_or(false, |s| s.contains(elem.name())) {
+                                mark_element(elem, &graph, &enums);
+                            }
                         }
                     },
                     _ => {}
@@ -387,31 +426,12 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
             },
             PacketContent::Simple(ref mut _s) => {
             },
-            PacketContent::Element(ref mut e) => {
-                let is_defined = match e.occurs() {
-                    Some(Occurs::Num(ref s)) => {
-                        let tmp = s.split("::").collect::<Vec<_>>();
-                        let s = tmp.last().unwrap();
-                        enums.contains(*s)
-                    },
-                    _ => false
-                };
-                if is_defined {
-                    e.set_occur_is_defined();
-                }
-                let node = graph.get_node(e.type_());
-                if let Ok(node) = node {
-                    if graph.nodes[node.0].type_ == TyEnum {
-                        e.set_enum_type(graph.nodes[node.0].type_name.clone());
-                    }
-                    if graph.nodes[node.0].is_defined == true {
-                        e.set_is_defined();
-                    }
-                }
-            },
+            PacketContent::Element(ref mut e) => mark_element(e, &graph, &enums),
             _ => {}
         }
     }
+
+    ::selected::check(&mut packet)?;
 
     if vector {
         packet.add_content(self::PacketContent::Include("vector".to_owned(), true));
@@ -422,4 +442,30 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
     }
 
     Ok(packet)
+}
+
+/// Marks what the C++ backend needs to know of an element of a packet: the
+/// base of its enumeration, and whether its type or count is defined in the
+/// packet.
+fn mark_element(e: &mut Element, graph: &Graph, enums: &HashSet<String>) {
+    let is_defined = match e.occurs() {
+        Some(Occurs::Num(ref s)) => {
+            let tmp = s.split("::").collect::<Vec<_>>();
+            let s = tmp.last().unwrap();
+            enums.contains(*s)
+        },
+        _ => false
+    };
+    if is_defined {
+        e.set_occur_is_defined();
+    }
+    let node = graph.get_node(e.type_());
+    if let Ok(node) = node {
+        if graph.nodes[node.0].type_ == NodeType::TyEnum {
+            e.set_enum_type(graph.nodes[node.0].type_name.clone());
+        }
+        if graph.nodes[node.0].is_defined == true {
+            e.set_is_defined();
+        }
+    }
 }

@@ -7,6 +7,18 @@ mod codegen_definitions;
 mod codegen_header;
 mod codegen_source;
 
+#[cfg(test)]
+mod tests_selected;
+
+/// The members `elem` stands for: itself, or the elements of the branches
+/// of the selector choice it is.
+pub(crate) fn members<'p>(packet: &'p flat_ast::Packet, elem: &'p flat_ast::Element) -> Vec<&'p flat_ast::Element> {
+    match ::selected::selected_type(packet, elem.type_()) {
+        Some(selected) => selected.members(),
+        None => vec![elem]
+    }
+}
+
 pub struct Generator {
     output_header: PathBuf,
     output_source: PathBuf

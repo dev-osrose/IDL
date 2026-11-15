@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use super::{generate_files, RustArgs};
 
-fn args() -> RustArgs {
+pub(super) fn args() -> RustArgs {
     RustArgs {
         output_folder: String::new(),
         shared_types_path: "crate::packets::shared_types".into(),
@@ -20,13 +20,13 @@ fn args() -> RustArgs {
 }
 
 /// Generates the given XML documents: packets, or definitions.
-fn generate_with(xmls: &[&str], args: &RustArgs) -> Result<BTreeMap<String, String>, String> {
+pub(super) fn generate_with(xmls: &[&str], args: &RustArgs) -> Result<BTreeMap<String, String>, String> {
     let (mut packets, mut definitions) = (Vec::new(), Vec::new());
     for xml in xmls {
         match ::schema::Reader::load_document(std::io::Cursor::new(xml.as_bytes().to_vec())).unwrap() {
             ::schema::ast::Document::Packet(packet) => {
-                let packet = ::flatten::flatten(std::path::Path::new("."), &packet).unwrap();
-                packets.push(::graph_passes::run(packet).unwrap());
+                let packet = ::flatten::flatten(std::path::Path::new("."), &packet).map_err(|e| e.to_string())?;
+                packets.push(::graph_passes::run(packet).map_err(|e| e.to_string())?);
             }
             ::schema::ast::Document::Definitions(d) => definitions.push(::flatten::flatten_definitions(&d)),
         }
@@ -34,12 +34,12 @@ fn generate_with(xmls: &[&str], args: &RustArgs) -> Result<BTreeMap<String, Stri
     generate_files("test", &packets, &definitions, args)
 }
 
-fn generate(xmls: &[&str]) -> BTreeMap<String, String> {
+pub(super) fn generate(xmls: &[&str]) -> BTreeMap<String, String> {
     generate_with(xmls, &args()).unwrap_or_else(|e| panic!("{}", e))
 }
 
 /// Asserts that `haystack` contains each of `needles`, in that order.
-fn contains_in_order(haystack: &str, needles: &[&str]) {
+pub(super) fn contains_in_order(haystack: &str, needles: &[&str]) {
     let mut rest = haystack;
     for needle in needles {
         match rest.find(needle) {

@@ -1,6 +1,7 @@
 use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
+use super::members;
 
 pub (crate) struct CodeHeaderGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>,
@@ -87,7 +88,7 @@ namespace Packet {{
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Complex(ref complex) => self.complex_type(complex)?,
+                Complex(ref complex) => self.complex_type(complex, packet)?,
                 _ => {}
             };
         }
@@ -98,8 +99,10 @@ namespace Packet {{
             use self::PacketContent::*;
             match content {
                 Element(ref elem) => {
-                    self.elem_setter(elem, packet.class_name())?;
-                    self.elem_getter(elem)?;
+                    for elem in members(packet, elem) {
+                        self.elem_setter(elem, packet.class_name())?;
+                        self.elem_getter(elem)?;
+                    }
                 },
                 _ => {}
             };
@@ -122,7 +125,11 @@ namespace Packet {{
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Element(ref elem) => self.element(elem)?,
+                Element(ref elem) => {
+                    for elem in members(packet, elem) {
+                        self.element(elem)?;
+                    }
+                },
                 _ => {}
             };
         }
@@ -182,7 +189,7 @@ namespace Packet {{
     }
 
     fn complex_type_to_json(&mut self, packet_name: &str, element: &ComplexType) -> Result<()> {
-        if element.inline() == true {
+        if element.inline() == true || matches!(element.content(), ComplexTypeContent::Selected(_)) {
             return Ok(());
         }
         cg!(self, "void to_json(nlohmann::json& j, const {}::{}& data);", packet_name, element.name());
@@ -210,9 +217,11 @@ namespace Packet {{
         Ok(())
     }
 
-    fn complex_type(&mut self, complex: &ComplexType) -> Result<()> {
+    fn complex_type(&mut self, complex: &ComplexType, packet: &Packet) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
-        if complex.inline() == false {
+        // A selector choice is no type of its own: its members are those of
+        // what holds it.
+        if complex.inline() == false && !matches!(complex.content(), Selected(_)) {
             cg!(self, "struct {} : public ISerialize {{", complex.name());
             self.indent();
             cg!(self, "virtual bool read(CRoseReader&) override;");
@@ -222,14 +231,14 @@ namespace Packet {{
             cg!(self);
             match complex.content() {
                 Seq(ref s) => {
-                    for elem in s.elements() {
+                    for elem in s.elements().iter().flat_map(|e| members(packet, e)) {
                         self.elem_setter(elem, complex.name())?;
                         self.elem_getter(elem)?;
                     }
                     cg!(self);
                     cg!(self, "private:");
                     self.indent();
-                    for elem in s.elements() {
+                    for elem in s.elements().iter().flat_map(|e| members(packet, e)) {
                         self.element(elem)?;
                     }
                     self.dedent();
@@ -268,7 +277,7 @@ namespace Packet {{
                     cg!(self, "}} data;");
                     self.dedent();
                 },
-                Empty => {}
+                Selected(_) | Empty => {}
             }
             self.dedent();
             cg!(self, "}};");

@@ -2,6 +2,7 @@ use ::flat_ast::*;
 use std::io::{Result, Write};
 use ::heck::*;
 use std::collections::HashSet;
+use super::members;
 
 pub (crate) struct CodeSourceGenerator<'a, W: Write + 'a> {
     writer: &'a mut ::writer::Writer<W>
@@ -80,7 +81,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for content in packet.contents() {
             use self::PacketContent::*;
             match content {
-                Complex(complex) => self.complex_type(complex, packet.class_name(), &iserialize)?,
+                Complex(complex) => self.complex_type(complex, packet, &iserialize)?,
                 _ => {}
             }
         }
@@ -106,107 +107,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if let Some(ref read_write) = elem.read_write() {
-                        read_write.clone()
-                    } else if let Some(ref enum_type) = elem.enum_type() {
-                        enum_type.clone()
-                    } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
-                        "iserialize".to_owned()
-                    } else {
-                        clean_base(elem.type_())
-                    };
-
-                    let name = elem.name().to_owned();
-
-                    if let Some(ref o) = elem.occurs() {
-                        use ::flat_ast::Occurs::*;
-                        match o {
-                            Unbounded => {
-                                cg!(self, "{{");
-                                self.indent();
-                                let class_base = if elem.is_defined() {
-                                    packet.class_name().to_owned() + "::"
-                                } else {
-                                    "".to_owned()
-                                };
-                                let enum_name = if let Some(ref enum_type) = elem.enum_type() {
-                                    format!("({}&)", enum_type)
-                                } else {
-                                    "".to_owned()
-                                };
-                                if elem.size_occurs().is_some() || elem.occurs_ref().is_some() || elem.occurs_bits().is_some() {
-                                    if let Some((ref by, _)) = elem.occurs_bits() {
-                                        // As many as the earlier flag has bits set under the mask.
-                                        let mask = masked(elem)?;
-                                        cg!(self, "auto size = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
-                                    } else if let Some(ref by) = elem.occurs_ref() {
-                                        // The count is an element read before; a negative one is no items.
-                                        cg!(self, "auto size = {};", by);
-                                    } else if let Some(ref s) = elem.size_occurs() {
-                                        cg!(self, "{} size;", s);
-                                        self.write_if_else(&format!("!reader.get_{}(size)", s), &[
-                                            "return;"
-                                        ], None)?;
-                                    }
-                                    cg!(self, "while (size-- > 0) {{");
-                                    self.indent();
-                                    cg!(self, "{} elem;", class_base + elem.type_());
-                                    self.write_if_else(&format!("!reader.get_{}({}elem)", base, enum_name), &[
-                                        "return;"
-                                    ], None)?;
-                                    cg!(self, "{}.push_back(elem);", elem.name());
-                                    self.dedent();
-                                    cg!(self, "}}");
-                                } else {
-                                    cg!(self, "{} elem;", class_base + elem.type_());
-                                    cg!(self, "while (reader.get_{}({}elem)) {{", base, enum_name);
-                                    self.indent();
-                                    cg!(self, "{}.push_back(elem);", elem.name());
-                                    self.dedent();
-                                    cg!(self, "}}");
-                                }
-                                self.dedent();
-                                cg!(self, "}}");
-                            },
-                            Num(n) => {
-                                cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
-                                self.indent();
-                                self.write_if_else(&format!("!reader.get_{}({}[index])", base, name), &[
-                                        "return;"
-                                    ], None)?;
-                                self.dedent();
-                                cg!(self, "}}");
-                            }
-                        }
-                    } else if let Some(ref enum_type) = elem.enum_type() {
-                        // Introduce a temprorary variable to avoid reference aliasing issues
-                        let temp_name = format!("{}_temp", elem.name());
-                        cg!(self, "{} {};", enum_type, temp_name);
-                        self.write_if_else(&format!("!reader.get_{}({})", enum_type, temp_name), &[
-                            "return;"
-                        ], None)?;
-                        cg!(self, "{} = static_cast<{}>({});", elem.name(), elem.type_(), temp_name);
-                        cg!(self);
-                    } else {
-                        let name = if let Some(bitset) = elem.bitset() {
-                            if bitset.start == 0 {
-                                Some(&bitset.name)
-                            } else {
-                                None
-                            }
-                        } else {
-                            Some(elem.name())
-                        };
-                        let base = if elem.bitset().is_some() {
-                            "bitset".to_owned()
-                        } else {
-                            base
-                        };
-                        if let Some(name) = name {
-                            self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
-                                    "return;"
-                                ], None)?;
-                        }
+                    match ::selected::selected_type(packet, elem.type_()) {
+                        Some(selected) => self.switch(packet, selected, "return;", &mut |this, elem| this.read_element(elem, packet.class_name(), &iserialize, "return;"))?,
+                        None => self.read_element(elem, packet.class_name(), &iserialize, "return;")?
                     }
                 },
                 _ => {}
@@ -220,8 +123,10 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    self.elem_setter(elem, packet.class_name(), false)?;
-                    self.elem_getter(elem, packet.class_name(), false)?;
+                    for elem in members(packet, elem) {
+                        self.elem_setter(elem, packet.class_name(), false)?;
+                        self.elem_getter(elem, packet.class_name(), false)?;
+                    }
                 },
                 _ => {}
             }
@@ -241,7 +146,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         for elem in packet.contents() {
             match elem {
                 self::PacketContent::Element(elem) => {
-                    if elem.type_() == "std::string" {
+                    // A selector choice is no fixed part of the packet.
+                    if elem.type_() == "std::string" || ::selected::selected_type(packet, elem.type_()).is_some() {
                         continue;
                     }
                     if let Some(ref size) = elem.size_occurs() {
@@ -303,7 +209,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Complex(c) => {
-                    self.complex_type_to_json(packet.class_name(), c)?;
+                    self.complex_type_to_json(packet, c)?;
                     self.complex_type_from_json(packet.class_name(), c)?;
                 },
                 _ => {}
@@ -328,12 +234,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(e) => {
-                    let bitfield = if e.bitset().is_some() {
-                        " == 1"
-                    } else {
-                        ""
-                    };
-                    cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", e.name(), bitfield);
+                    for e in members(packet, e) {
+                        let bitfield = if e.bitset().is_some() {
+                            " == 1"
+                        } else {
+                            ""
+                        };
+                        cg!(self, "{{ \"{0}\", data.get_{0}(){1} }},", e.name(), bitfield);
+                    }
                 }
                 _ => {}
             }
@@ -383,8 +291,11 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn complex_type_to_json(&mut self, packet_name: &str, element: &ComplexType) -> Result<()> {
-        if element.inline() == true {
+    fn complex_type_to_json(&mut self, packet: &Packet, element: &ComplexType) -> Result<()> {
+        let packet_name = packet.class_name();
+        // A selector choice is no type of its own: its members are those of
+        // what holds it.
+        if element.inline() == true || matches!(element.content(), ComplexTypeContent::Selected(_)) {
             return Ok(());
         }
         cg!(self, "void RoseCommon::Packet::to_json(nlohmann::json& j, const {}::{}& data) {{", packet_name, element.name());
@@ -394,7 +305,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         self.indent();
         match element.content() {
             Seq(ref s) => {
-                for elem in s.elements() {
+                for elem in s.elements().iter().flat_map(|e| members(packet, e)) {
                     let bitfield = if elem.bitset().is_some() {
                         " == 1"
                     } else {
@@ -424,7 +335,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     }
                 }
             },
-            Empty => {}
+            Selected(_) | Empty => {}
         }
         self.dedent();
         cg!(self, "}};");
@@ -437,28 +348,29 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn complex_type(&mut self, complex: &ComplexType, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
+    fn complex_type(&mut self, complex: &ComplexType, packet: &Packet, iserialize: &HashSet<String>) -> Result<()> {
         use ::flat_ast::ComplexTypeContent::*;
-        let class_name = class_name.to_owned() + "::" + complex.name();
+        let class_name = packet.class_name().to_owned() + "::" + complex.name();
         if complex.inline() == false {
             match complex.content() {
                 Seq(ref s) => {
-                    for elem in s.elements() {
+                    for elem in s.elements().iter().flat_map(|e| members(packet, e)) {
                         self.elem_setter(elem, &class_name, false)?;
                         self.elem_getter(elem, &class_name, false)?;
                     }
-                    self.pack_sequence(s, &class_name, iserialize)?;
+                    self.pack_sequence(s, packet, &class_name, iserialize)?;
                     cg!(self);
-                    self.read_sequence(s, &class_name, iserialize)?;
+                    self.read_sequence(s, packet, &class_name, iserialize)?;
                     cg!(self);
                     cg!(self, "constexpr size_t {}::size() {{", class_name);
                     self.indent();
                     cg!(self, "size_t size = 0;");
                     for elem in s.elements() {
-                        if elem.type_() == "std::string" {
+                        if elem.type_() == "std::string" || ::selected::selected_type(packet, elem.type_()).is_some() {
                             continue;
                         }
-                        let rhs = if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
+                        // Only selectors have an enum_type here: their size is that of the enumeration.
+                        let rhs = if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) && elem.enum_type().is_none() {
                             format!("{}::size()", elem.type_())
                         } else {
                             let rhs = elem.bitset().as_ref().map_or(Some(format!("sizeof({})", elem.type_())), |bitset| if bitset.start == 0 {
@@ -516,6 +428,8 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                     cg!(self, "}}");
                     cg!(self);
                 },
+                // Its members are those of what holds it.
+                Selected(_) => {},
                 Empty => {}
             }
         }
@@ -750,84 +664,9 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
             use self::PacketContent::*;
             match content {
                 Element(elem) => {
-                    let base = if let Some(ref read_write) = elem.read_write() {
-                        read_write.clone()
-                    } else if let Some(ref enum_type) = elem.enum_type() {
-                        enum_type.clone()
-                    } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
-                        "iserialize".to_owned()
-                    } else {
-                        clean_base(elem.type_())
-                    };
-                    // The count of an `occursRef` list is written as the list's length.
-                    let counted = packet.contents().iter().find_map(|content| match content {
-                        Element(list) if list.occurs_ref().as_deref() == Some(elem.name().as_str()) => {
-                            Some(list.name().clone())
-                        }
-                        _ => None,
-                    });
-                    if let Some(list) = counted {
-                        self.write_if_else(&format!("!writer.set_{}(static_cast<{}>({}.size()))", base, elem.type_(), list), &[
-                            "return false;"
-                        ], None)?;
-                        continue;
-                    }
-                    if let Some((ref by, _)) = elem.occurs_bits() {
-                        // Exactly as many as the flag says, missing ones as defaults.
-                        let mask = masked(elem)?;
-                        cg!(self, "{{");
-                        self.indent();
-                        cg!(self, "const size_t count = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
-                        cg!(self, "for (size_t index = 0; index < count; ++index) {{");
-                        self.indent();
-                        let list = elem.name();
-                        self.write_if_else(&format!("!writer.set_{}(index < {}.size() ? {}[index] : {}{{}})", base, list, list, elem.type_()), &[
-                            "return false;"
-                        ], None)?;
-                        self.dedent();
-                        cg!(self, "}}");
-                        self.dedent();
-                        cg!(self, "}}");
-                        continue;
-                    }
-                    if let Some(ref o) = elem.occurs() {
-                        use ::flat_ast::Occurs::*;
-                        match o {
-                            Unbounded | Num(_) => {
-                                if let Some(ref s) = elem.size_occurs() {
-                                    self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
-                                        "return false;"
-                                    ], None)?;
-                                }
-                                cg!(self, "for (const auto& elem : {}) {{", elem.name());
-                                self.indent();
-                                self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
-                                        "return false;"
-                                    ], None)?;
-                                self.dedent();
-                                cg!(self, "}}");
-                            }
-                        }
-                    } else {
-                        let name = if let Some(bitset) = elem.bitset() {
-                            if bitset.start == 0 {
-                                Some(&bitset.name)
-                            } else {
-                                None
-                            }
-                        } else {
-                            Some(elem.name())
-                        };
-                        let base = if elem.bitset().is_some() {
-                            "bitset".to_owned()
-                        } else {
-                            base
-                        };
-                        if let Some(name) = name {
-                            self.write_if_else(&format!("!writer.set_{}({})", base, name), &[
-                                    "return false;"
-                                ], None)?;
-                        }
+                    match ::selected::selected_type(packet, elem.type_()) {
+                        Some(selected) => self.switch(packet, selected, "return false;", &mut |this, elem| this.pack_element(elem, packet, &iserialize))?,
+                        None => self.pack_element(elem, packet, iserialize)?
                     }
                 },
                 _ => {}
@@ -839,14 +678,263 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn pack_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
+    /// Reads one element of a packet (or of a branch); `fail` is what to do
+    /// when it cannot be read.
+    fn read_element(&mut self, elem: &Element, class_name: &str, iserialize: &HashSet<String>, fail: &str) -> Result<()> {
+        let base = if let Some(ref read_write) = elem.read_write() {
+            read_write.clone()
+        } else if let Some(ref enum_type) = elem.enum_type() {
+            enum_type.clone()
+        } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
+            "iserialize".to_owned()
+        } else {
+            clean_base(elem.type_())
+        };
+
+        let name = elem.name().to_owned();
+
+        if let Some(ref o) = elem.occurs() {
+            use ::flat_ast::Occurs::*;
+            match o {
+                Unbounded => {
+                    cg!(self, "{{");
+                    self.indent();
+                    let class_base = if elem.is_defined() {
+                        class_name.to_owned() + "::"
+                    } else {
+                        "".to_owned()
+                    };
+                    let enum_name = if let Some(ref enum_type) = elem.enum_type() {
+                        format!("({}&)", enum_type)
+                    } else {
+                        "".to_owned()
+                    };
+                    if elem.size_occurs().is_some() || elem.occurs_ref().is_some() || elem.occurs_bits().is_some() {
+                        if let Some((ref by, _)) = elem.occurs_bits() {
+                            // As many as the earlier flag has bits set under the mask.
+                            let mask = masked(elem)?;
+                            cg!(self, "auto size = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
+                        } else if let Some(ref by) = elem.occurs_ref() {
+                            // The count is an element read before; a negative one is no items.
+                            cg!(self, "auto size = {};", by);
+                        } else if let Some(ref s) = elem.size_occurs() {
+                            cg!(self, "{} size;", s);
+                            self.write_if_else(&format!("!reader.get_{}(size)", s), &[
+                                fail
+                            ], None)?;
+                        }
+                        cg!(self, "while (size-- > 0) {{");
+                        self.indent();
+                        cg!(self, "{} elem;", class_base + elem.type_());
+                        self.write_if_else(&format!("!reader.get_{}({}elem)", base, enum_name), &[
+                            fail
+                        ], None)?;
+                        cg!(self, "{}.push_back(elem);", elem.name());
+                        self.dedent();
+                        cg!(self, "}}");
+                    } else {
+                        cg!(self, "{} elem;", class_base + elem.type_());
+                        cg!(self, "while (reader.get_{}({}elem)) {{", base, enum_name);
+                        self.indent();
+                        cg!(self, "{}.push_back(elem);", elem.name());
+                        self.dedent();
+                        cg!(self, "}}");
+                    }
+                    self.dedent();
+                    cg!(self, "}}");
+                },
+                Num(n) => {
+                    cg!(self, "for (size_t index = 0; index < {}; ++index) {{", n);
+                    self.indent();
+                    self.write_if_else(&format!("!reader.get_{}({}[index])", base, name), &[
+                            fail
+                        ], None)?;
+                    self.dedent();
+                    cg!(self, "}}");
+                }
+            }
+        } else if let Some(ref enum_type) = elem.enum_type() {
+            // Introduce a temprorary variable to avoid reference aliasing issues
+            let temp_name = format!("{}_temp", elem.name());
+            cg!(self, "{} {};", enum_type, temp_name);
+            self.write_if_else(&format!("!reader.get_{}({})", enum_type, temp_name), &[
+                fail
+            ], None)?;
+            cg!(self, "{} = static_cast<{}>({});", elem.name(), elem.type_(), temp_name);
+            cg!(self);
+        } else {
+            let name = if let Some(bitset) = elem.bitset() {
+                if bitset.start == 0 {
+                    Some(&bitset.name)
+                } else {
+                    None
+                }
+            } else {
+                Some(elem.name())
+            };
+            let base = if elem.bitset().is_some() {
+                "bitset".to_owned()
+            } else {
+                base
+            };
+            if let Some(name) = name {
+                self.write_if_else(&format!("!reader.get_{}({})", base, name), &[
+                        fail
+                    ], None)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Writes one element of a packet (or of a branch).
+    fn pack_element(&mut self, elem: &Element, packet: &Packet, iserialize: &HashSet<String>) -> Result<()> {
+        use self::PacketContent::*;
+        let base = if let Some(ref read_write) = elem.read_write() {
+            read_write.clone()
+        } else if let Some(ref enum_type) = elem.enum_type() {
+            enum_type.clone()
+        } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
+            "iserialize".to_owned()
+        } else {
+            clean_base(elem.type_())
+        };
+        // The count of an `occursRef` list is written as the list's length.
+        let counted = packet.contents().iter().find_map(|content| match content {
+            Element(list) if list.occurs_ref().as_deref() == Some(elem.name().as_str()) => {
+                Some(list.name().clone())
+            }
+            _ => None,
+        });
+        if let Some(list) = counted {
+            self.write_if_else(&format!("!writer.set_{}(static_cast<{}>({}.size()))", base, elem.type_(), list), &[
+                "return false;"
+            ], None)?;
+            return Ok(());
+        }
+        if let Some((ref by, _)) = elem.occurs_bits() {
+            // Exactly as many as the flag says, missing ones as defaults.
+            let mask = masked(elem)?;
+            cg!(self, "{{");
+            self.indent();
+            cg!(self, "const size_t count = std::bitset<64>(static_cast<uint64_t>({}) & {:#x}).count();", by, mask);
+            cg!(self, "for (size_t index = 0; index < count; ++index) {{");
+            self.indent();
+            let list = elem.name();
+            self.write_if_else(&format!("!writer.set_{}(index < {}.size() ? {}[index] : {}{{}})", base, list, list, elem.type_()), &[
+                "return false;"
+            ], None)?;
+            self.dedent();
+            cg!(self, "}}");
+            self.dedent();
+            cg!(self, "}}");
+            return Ok(());
+        }
+        if let Some(ref o) = elem.occurs() {
+            use ::flat_ast::Occurs::*;
+            match o {
+                Unbounded | Num(_) => {
+                    if let Some(ref s) = elem.size_occurs() {
+                        self.write_if_else(&format!("!writer.set_{}({}.size())", s, elem.name()), &[
+                            "return false;"
+                        ], None)?;
+                    }
+                    cg!(self, "for (const auto& elem : {}) {{", elem.name());
+                    self.indent();
+                    self.write_if_else(&format!("!writer.set_{}(elem)", base), &[
+                            "return false;"
+                        ], None)?;
+                    self.dedent();
+                    cg!(self, "}}");
+                }
+            }
+        } else {
+            let name = if let Some(bitset) = elem.bitset() {
+                if bitset.start == 0 {
+                    Some(&bitset.name)
+                } else {
+                    None
+                }
+            } else {
+                Some(elem.name())
+            };
+            let base = if elem.bitset().is_some() {
+                "bitset".to_owned()
+            } else {
+                base
+            };
+            if let Some(name) = name {
+                self.write_if_else(&format!("!writer.set_{}({})", base, name), &[
+                        "return false;"
+                    ], None)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// A switch on the selector of `selected` doing `each` for the elements
+    /// of the branch the selector's value picks, and `fail` for a value no
+    /// branch is for.
+    fn switch(&mut self, packet: &Packet, selected: &Selected, fail: &str,
+              each: &mut dyn FnMut(&mut Self, &Element) -> Result<()>) -> Result<()> {
+        let enum_name = enum_of(packet, selected.selector_type());
+        cg!(self, "switch ({}) {{", selected.selector());
+        self.indent();
+        for case in selected.cases() {
+            let label = match case.value() {
+                Some(label) => label,
+                None => continue
+            };
+            let label = match enum_name {
+                Some(ref name) => format!("{}::{}", name, label),
+                None => match ::selected::parse_int(label) {
+                    Some(value) => value.to_string(),
+                    None => return Err(other(format!("{}: case {:?} is not an integer", selected.selector(), label)))
+                }
+            };
+            cg!(self, "case {}: {{", label);
+            self.indent();
+            for elem in case.elements() {
+                each(self, elem)?;
+            }
+            cg!(self, "break;");
+            self.dedent();
+            cg!(self, "}}");
+        }
+        cg!(self, "default: {{");
+        self.indent();
+        match selected.cases().iter().find(|case| case.value().is_none()) {
+            Some(case) => {
+                for elem in case.elements() {
+                    each(self, elem)?;
+                }
+                cg!(self, "break;");
+            },
+            None => { cg!(self, "{}", fail); }
+        }
+        self.dedent();
+        cg!(self, "}}");
+        self.dedent();
+        cg!(self, "}}");
+        Ok(())
+    }
+
+    fn pack_sequence(&mut self, packet: &Sequence, whole: &Packet, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
         if packet.elements().iter().any(|elem| elem.occurs_ref().is_some() || elem.occurs_bits().is_some()) {
             return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
                 format!("{}: occursRef and occursBits are only supported on packet elements", class_name)));
         }
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
+        let selectors = selectors(whole, packet);
         for elem in packet.elements() {
+            if let Some(selected) = ::selected::selected_type(whole, elem.type_()) {
+                self.switch(whole, selected, "return false;", &mut |this, elem| this.pack_element(elem, whole, iserialize))?;
+                continue;
+            }
+            if selectors.contains(&elem.name()) {
+                self.pack_element(elem, whole, iserialize)?;
+                continue;
+            }
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
             } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
@@ -909,14 +997,24 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         Ok(())
     }
 
-    fn read_sequence(&mut self, packet: &Sequence, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
+    fn read_sequence(&mut self, packet: &Sequence, whole: &Packet, class_name: &str, iserialize: &HashSet<String>) -> Result<()> {
         if packet.elements().iter().any(|elem| elem.occurs_ref().is_some() || elem.occurs_bits().is_some()) {
             return Err(::std::io::Error::new(::std::io::ErrorKind::Other,
                 format!("{}: occursRef and occursBits are only supported on packet elements", class_name)));
         }
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
+        let selectors = selectors(whole, packet);
         for elem in packet.elements() {
+            let class = whole.class_name();
+            if let Some(selected) = ::selected::selected_type(whole, elem.type_()) {
+                self.switch(whole, selected, "return false;", &mut |this, elem| this.read_element(elem, class, iserialize, "return false;"))?;
+                continue;
+            }
+            if selectors.contains(&elem.name()) {
+                self.read_element(elem, class, iserialize, "return false;")?;
+                continue;
+            }
             let base = if let Some(ref enum_type) = elem.enum_type() {
                 enum_type.clone()
             } else if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) {
@@ -1228,4 +1326,28 @@ fn clean_base(base: &str) -> String {
     } else {
         base.to_string()
     }
+}
+
+/// The names of the selectors of the selector choices of `seq`.
+fn selectors<'p>(packet: &'p Packet, seq: &Sequence) -> Vec<&'p String> {
+    seq.elements().iter().filter_map(|e| ::selected::selected_type(packet, e.type_()).map(|s| s.selector())).collect()
+}
+
+fn other(message: String) -> ::std::io::Error {
+    ::std::io::Error::new(::std::io::ErrorKind::Other, message)
+}
+
+/// The name of the enumeration `type_` is in the generated code, if it is
+/// one of the XML.
+fn enum_of(packet: &Packet, type_: &str) -> Option<String> {
+    let upper = type_.to_upper_camel_case();
+    packet.contents().iter().find_map(|content| match content {
+        PacketContent::Simple(s) if *s.name() == upper || s.name() == type_ => {
+            let is_enum = s.contents().iter().any(|SimpleTypeContent::Restriction(r)| {
+                r.contents().iter().any(|c| matches!(c, RestrictionContent::Enumeration(_)))
+            });
+            if is_enum { Some(s.name().clone()) } else { None }
+        },
+        _ => None
+    })
 }

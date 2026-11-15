@@ -110,6 +110,13 @@ impl<'a> Ctx<'a> {
                         }
                     }
                 }
+                ComplexTypeContent::Selected(s) => {
+                    for case in s.cases() {
+                        for e in case.elements() {
+                            self.need(e);
+                        }
+                    }
+                }
                 ComplexTypeContent::Empty => {}
             }
         }
