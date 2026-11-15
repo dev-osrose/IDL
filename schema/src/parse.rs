@@ -90,6 +90,7 @@ fn packet(r: &mut Reader, attrs: Attributes) -> Result<Packet> {
         ("element", &|r, attrs| Ok(A(Element(element(r, attrs)?)))),
         ("simpleType", &|r, attrs| Ok(A(SimpleType(simple_type(r, attrs)?)))),
         ("complexType", &|r, attrs| Ok(A(ComplexType(complex_type(r, attrs)?)))),
+        ("choice", &|r, attrs| Ok(A(Choice(choice(r, attrs)?)))),
         ("documentation", &|r, attrs| Ok(B(documentation(r, attrs)?)))
     ])? {
         match item {
@@ -126,8 +127,11 @@ fn seq(r: &mut Reader, attrs: Attributes) -> Result<Sequence> {
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
     let inline = attrs.parse_opt("inline")?.unwrap_or(false);
+    let case = attrs.get_opt("case");
+    let default = attrs.parse_opt("default")?.unwrap_or(false);
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
     let mut seq = Sequence::new(occurs, size_occurs, doc, inline);
+    seq.set_case(case, default);
     for content in contents {
         seq.add_content(content);
     }
@@ -138,8 +142,11 @@ fn choice(r: &mut Reader, attrs: Attributes) -> Result<Choice> {
     trace!("reading choice");
     let occurs = attrs.parse_opt("occurs")?;
     let size_occurs = attrs.parse_opt("occursSize")?;
+    let selector = attrs.get_opt("selector");
+    let name = attrs.get_opt("name");
     let (doc, contents) = seq_or_choice_children(r, attrs)?;
     let mut choice = Choice::new(occurs, size_occurs, doc);
+    choice.set_selector(selector, name);
     for content in contents {
         choice.add_content(content);
     }

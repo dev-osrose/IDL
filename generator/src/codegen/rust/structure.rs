@@ -2,24 +2,25 @@
 
 use std::fmt::Write as _;
 
-use ::flat_ast::{Element, ElementInitValue, Occurs};
+use ::flat_ast::{ComplexTypeContent, Element, ElementInitValue, Occurs};
 
-use super::context::Ctx;
-use super::names::{check_ident, field_name, mask, parse_int};
+use super::context::{Ctx, Def};
+use super::encode::{read_fields, sample_fixes, sample_value, write_fields};
+use super::names::{check_ident, field_name, parse_int};
 use super::prim::prim;
 use super::{doc_comment, Result};
 
 /// How one element of a struct is stored and encoded.
-struct Field {
-    name: String,
+pub(super) struct Field {
+    pub name: String,
     /// Full Rust type of the struct field.
-    ty: String,
-    shape: Shape,
-    default: String,
-    doc: Option<String>,
+    pub ty: String,
+    pub shape: Shape,
+    pub default: String,
+    pub doc: Option<String>,
 }
 
-enum Shape {
+pub(super) enum Shape {
     Scalar,
     /// `Vec<T>`, with the Rust type of the count written before it, if any.
     List { count: Option<&'static str> },
@@ -36,6 +37,12 @@ enum Shape {
     Array,
     /// Part of a run of bit fields: offset and width within the run.
     Bits { offset: u32, width: u32, run: usize },
+    /// The selector of the choice `body`: no field, written as the value
+    /// the variant of `body` is for, read as it comes.
+    Selector { body: String },
+    /// A selector choice, of type `ty`, read as the variant for the value of
+    /// the earlier field `selector`.
+    Body { selector: String },
 }
 
 /// Default of a plain element: the XML default when it is a number, otherwise
@@ -58,7 +65,7 @@ fn scalar_default(element: &Element) -> String {
 }
 
 impl<'a> Ctx<'a> {
-    fn fields(&self, elements: &[Element], context: &str) -> Result<(Vec<Field>, Vec<u32>)> {
+    pub(super) fn fields(&self, elements: &[Element], context: &str) -> Result<(Vec<Field>, Vec<u32>)> {
         let mut fields: Vec<Field> = Vec::new();
         // Total width of each run of bit fields.
         let mut runs: Vec<u32> = Vec::new();
@@ -70,6 +77,26 @@ impl<'a> Ctx<'a> {
                 return Err(format!("{}: two elements are named {}", context, name));
             }
             let context = format!("{}: element {}", context, element.name());
+            if let Some((ty, Def::Complex(complex))) = self.lookup(element.type_()) {
+                if let ComplexTypeContent::Selected(selected) = complex.content() {
+                    let selector = field_name(selected.selector());
+                    let at = elements[..index]
+                        .iter()
+                        .position(|e| field_name(e.name()) == selector)
+                        .filter(|at| matches!(fields[*at].shape, Shape::Scalar))
+                        .ok_or(format!("{}: selector {:?} is not an earlier plain element", context, selector))?;
+                    fields[at].shape = Shape::Selector { body: name.clone() };
+                    fields.push(Field {
+                        name,
+                        ty: ty.to_owned(),
+                        shape: Shape::Body { selector },
+                        default: "Default::default()".into(),
+                        doc: element.doc().clone(),
+                    });
+                    in_run = false;
+                    continue;
+                }
+            }
             let base = self.type_path(element, &context)?;
             let doc = element.doc().clone();
 
@@ -247,117 +274,34 @@ impl<'a> Ctx<'a> {
     ) -> Result<()> {
         check_ident(name, context)?;
         let (fields, runs) = self.fields(elements, context)?;
-        let run_bytes = |run: usize| (runs[run] + 7) / 8;
-        // The last field of each bit run is where the run is written.
-        let last_of_run = |index: usize, run: usize| match fields.get(index + 1).map(|f| &f.shape) {
-            Some(Shape::Bits { run: next, .. }) => *next != run,
-            _ => true,
-        };
-
         doc_comment(out, "", doc);
         writeln!(out, "#[derive(Debug, Clone, PartialEq)]").unwrap();
         writeln!(out, "pub struct {} {{", name).unwrap();
-        for field in &fields {
+        // A selector is no field: the choice it selects decides its value.
+        let stored: Vec<&Field> = fields.iter().filter(|f| !matches!(f.shape, Shape::Selector { .. })).collect();
+        for field in &stored {
             doc_comment(out, "    ", &field.doc);
             writeln!(out, "    pub {}: {},", field.name, field.ty).unwrap();
         }
         writeln!(out, "}}\n").unwrap();
 
         writeln!(out, "impl Default for {} {{\n    fn default() -> Self {{\n        Self {{", name).unwrap();
-        for field in &fields {
+        for field in &stored {
             writeln!(out, "            {}: {},", field.name, field.default).unwrap();
         }
         writeln!(out, "        }}\n    }}\n}}\n").unwrap();
 
         writeln!(out, "impl Wire for {} {{\n    fn write(&self, w: &mut Writer) {{", name).unwrap();
-        for (index, field) in fields.iter().enumerate() {
-            let f = &field.name;
-            match &field.shape {
-                Shape::Scalar => writeln!(out, "        self.{}.write(w);", f).unwrap(),
-                Shape::Count { list } => {
-                    writeln!(out, "        (self.{}.len() as {}).write(w);", list, field.ty).unwrap()
-                }
-                Shape::Counted { .. } => {
-                    writeln!(out, "        for item in &self.{} {{\n            item.write(w);\n        }}", f).unwrap()
-                }
-                Shape::Masked { by, mask } => writeln!(
-                    out,
-                    "        for index in 0..((self.{} as u64) & {:#x}).count_ones() as usize {{\n            self.{}.get(index).cloned().unwrap_or_default().write(w);\n        }}",
-                    by, mask, f
-                )
-                .unwrap(),
-                Shape::List { count } => {
-                    if let Some(count) = count {
-                        writeln!(out, "        (self.{}.len() as {}).write(w);", f, count).unwrap();
-                    }
-                    writeln!(out, "        for item in &self.{} {{\n            item.write(w);\n        }}", f).unwrap();
-                }
-                Shape::Array => {
-                    writeln!(out, "        for item in &self.{} {{\n            item.write(w);\n        }}", f).unwrap()
-                }
-                Shape::Bits { offset, width, run } => {
-                    if *offset == 0 {
-                        writeln!(out, "        let mut bits = 0u64;").unwrap();
-                    }
-                    writeln!(out, "        bits |= (self.{} as u64 & {:#x}) << {};", f, mask(*width), offset).unwrap();
-                    if last_of_run(index, *run) {
-                        writeln!(out, "        w.put_bits(bits, {});", run_bytes(*run)).unwrap();
-                    }
-                }
-            }
-        }
+        write_fields(out, &fields, &runs, "        ", &|f| format!("self.{}", f));
         writeln!(out, "    }}\n").unwrap();
 
         writeln!(out, "    fn read(r: &mut Reader<'_>) -> Result<Self, WireError> {{").unwrap();
-        for field in &fields {
-            let f = &field.name;
-            match &field.shape {
-                Shape::Scalar => writeln!(out, "        let {} = Wire::read(r)?;", f).unwrap(),
-                Shape::Count { .. } => writeln!(out, "        let {}: {} = Wire::read(r)?;", f, field.ty).unwrap(),
-                Shape::Masked { by, mask } => writeln!(
-                    out,
-                    "        let {} = r.read_counted((({} as u64) & {:#x}).count_ones() as usize)?;",
-                    f, by, mask
-                )
-                .unwrap(),
-                Shape::Counted { by } => {
-                    // A negative count is no items.
-                    writeln!(out, "        let {} = r.read_counted(usize::try_from({}).unwrap_or(0))?;", f, by).unwrap()
-                }
-                Shape::List { count: Some(count) } => {
-                    writeln!(out, "        let count = <{} as Wire>::read(r)? as usize;", count).unwrap();
-                    writeln!(out, "        let {} = r.read_counted(count)?;", f).unwrap();
-                }
-                Shape::List { count: None } => writeln!(out, "        let {} = r.read_to_end();", f).unwrap(),
-                Shape::Array => writeln!(out, "        let {} = r.read_array()?;", f).unwrap(),
-                Shape::Bits { offset, width, run } => {
-                    if *offset == 0 {
-                        writeln!(out, "        let bits = r.get_bits({})?;", run_bytes(*run)).unwrap();
-                    }
-                    writeln!(out, "        let {} = ((bits >> {}) & {:#x}) as {};", f, offset, mask(*width), field.ty)
-                        .unwrap();
-                }
-            }
-        }
-        let names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+        read_fields(out, &fields, &runs, "        ", &|f| f.to_owned());
+        let names: Vec<&str> = stored.iter().map(|f| f.name.as_str()).collect();
         writeln!(out, "        Ok(Self {{ {} }})\n    }}\n}}\n", names.join(", ")).unwrap();
 
         if let Some(feature) = self.sample_feature() {
-            // A count has to match its list to survive a round trip; so does
-            // a list counted by the bits of a flag.
-            let fixes: Vec<String> = fields
-                .iter()
-                .filter_map(|field| match &field.shape {
-                    Shape::Count { list } => {
-                        Some(format!("sample.{} = sample.{}.len() as {};", field.name, list, field.ty))
-                    }
-                    Shape::Masked { by, mask } => Some(format!(
-                        "sample.{} = (0..((sample.{} as u64) & {:#x}).count_ones()).map(|_| Sample::sample(g)).collect();",
-                        field.name, by, mask
-                    )),
-                    _ => None,
-                })
-                .collect();
+            let fixes = sample_fixes(&fields, &|f| format!("sample.{}", f));
             let open = if fixes.is_empty() { "Self {" } else { "let mut sample = Self {" };
             writeln!(
                 out,
@@ -365,19 +309,8 @@ impl<'a> Ctx<'a> {
                 feature, name, open
             )
             .unwrap();
-            for field in &fields {
-                let f = &field.name;
-                match &field.shape {
-                    Shape::Scalar | Shape::Array | Shape::Count { .. } => {
-                        writeln!(out, "            {}: Sample::sample(g),", f).unwrap()
-                    }
-                    Shape::List { .. } | Shape::Counted { .. } | Shape::Masked { .. } => {
-                        writeln!(out, "            {}: g.list(),", f).unwrap()
-                    }
-                    Shape::Bits { width, .. } => {
-                        writeln!(out, "            {}: (g.next_u64() & {:#x}) as {},", f, mask(*width), field.ty).unwrap()
-                    }
-                }
+            for field in &stored {
+                writeln!(out, "            {}: {},", field.name, sample_value(field)).unwrap();
             }
             if fixes.is_empty() {
                 writeln!(out, "        }}\n    }}\n}}\n").unwrap();

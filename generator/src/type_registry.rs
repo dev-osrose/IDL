@@ -150,6 +150,16 @@ impl TypeRegistry {
                 }
                 res.push((c.name().clone(), TypeFingerprint::Struct { name: c.name().clone(), fields }));
             }
+            ComplexTypeContent::Selected(ref selected) => {
+                let mut fields = vec![(selected.selector().clone(), selected.selector_type().clone(), None)];
+                for case in selected.cases() {
+                    let label = case.value().clone().unwrap_or_else(|| "default".to_owned());
+                    for elem in case.elements() {
+                        fields.push((format!("{}:{}", label, elem.name()), elem.type_().clone(), elem.bits()));
+                    }
+                }
+                res.push((c.name().clone(), TypeFingerprint::Struct { name: c.name().clone(), fields }));
+            }
             ComplexTypeContent::Empty => {
                 res.push((c.name().clone(), TypeFingerprint::Struct { name: c.name().clone(), fields: Vec::new() }));
             }

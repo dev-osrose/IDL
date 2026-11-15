@@ -57,3 +57,50 @@ packet type ids, go in a file of their own:
   from `--consts-path` and converted to `usize` there.
 
 Pass definitions files with `-i` like the packets.
+
+##### Selector choices
+
+A `<choice>` with a `selector` holds exactly one of its branches: the one for
+the value of an earlier element of the same packet or sequence.
+
+```xml
+<packet ePacketType = "PAKCC_CLAN_COMMAND">
+    <element name = "result" type = "ClanResult" />
+    <choice selector = "result">
+        <sequence case = "CREATED">
+            <element name = "clan" type = "MyClan" />
+            <element name = "name" type = "std::string" />
+        </sequence>
+        <sequence case = "NAME_TAKEN" />
+        <sequence case = "ROSTER">
+            <element name = "members" type = "ClanMember" occurs = "unbounded" />
+        </sequence>
+        <sequence default = "true" />
+    </choice>
+</packet>
+```
+
+- The selector is a plain element (no list, bit field or count) of an
+  enumeration of the XML or of an integer type. `case` is one of the
+  enumerators, or an integer (decimal or `0x`, maybe negative); no two cases
+  have the same value. At most one branch is `default = "true"`, for every
+  other value; without one, any other value fails to read and to write.
+- A branch is a `<sequence>` of elements, maybe none. Its last element may be
+  a list without `occursSize`, running to the end of the packet, if the
+  choice is the last element. Not in a branch: bit fields, `occursRef`,
+  `occursBits`, nested sequences or choices. An element name used in several
+  branches has the same type in each, and is not that of an element outside
+  the choice.
+- A choice without a selector is still a union (all branches overlap).
+- `name` names the choice (default `body`); its type is named after what
+  holds it: `SrvClanCommandBody` here, `<Type>Body` in a `complexType`.
+- Rust: an enum with a variant per branch (`Created { clan, name }`,
+  `NameTaken`, `Case16` for an integer case, `Other { result, .. }` for the
+  default branch), as the field `body`. The selector is no field: the variant
+  decides the value written for it (`body.selector()`). `Other` keeps the
+  value it was read with; given the value of a named branch, it is read back
+  as that branch.
+- C++: the selector stays a member, the elements of all branches are members
+  of what holds the choice, and reading and writing switch on the selector,
+  so the bytes always follow it. The constructor stops reading at a value no
+  branch is for; `pack` refuses to write one.

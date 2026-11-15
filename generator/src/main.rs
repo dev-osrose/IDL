@@ -10,6 +10,7 @@ mod flatten;
 mod writer;
 mod codegen;
 mod graph_passes;
+mod selected;
 mod type_registry;
 
 use codegen::{cpp, rust, Codegen, CodegenCommands};

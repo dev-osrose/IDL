@@ -15,7 +15,12 @@ struct Context<'a> {
     /// packet's contents. Not so while a named complex type is flattened: the
     /// type joins the packet only once it is complete, and `size_bitsets`
     /// sizes its runs then.
-    runs_in_packet: bool
+    runs_in_packet: bool,
+    /// The packet's class name, or the name of the complex type being
+    /// flattened: what the types of its selector choices are named after.
+    container: String,
+    /// What is wrong with the XML, reported once it is all read.
+    errors: Vec<String>
 }
 
 impl<'a> Context<'a> {
@@ -140,9 +145,14 @@ pub fn flatten(search_path: &::std::path::Path, p: &ast::Packet) -> Result<flat_
             is_in_choice: false,
             bitsets: 0,
             current_bitset: None,
-            runs_in_packet: true
+            runs_in_packet: true,
+            container: p_class_name(p),
+            errors: Vec::new()
         };
         flatten_(search_path, p, &mut ctx)?;
+        if !ctx.errors.is_empty() {
+            return Err(::failure::err_msg(ctx.errors.join("\n")));
+        }
         if ctx.bitsets != 0 {
             ctx.add_content(flat_ast::PacketContent::Include("bitset".to_owned(), true));
         }
@@ -177,6 +187,14 @@ fn flatten_(search_path: &::std::path::Path, packet: &ast::Packet, ctx: &mut Con
             },
             ast::PacketContent::Element(ref element) => {
                 let element = flatten_element(element, ctx, 0);
+                ctx.add_content(Element(element));
+            },
+            ast::PacketContent::Choice(ref choice) => {
+                if choice.selector().is_none() {
+                    ctx.errors.push(format!("{}: a choice among the elements of a packet needs a selector", ctx.container));
+                    continue;
+                }
+                let element = flatten_selected(choice, ctx, 0);
                 ctx.add_content(Element(element));
             }
         }
@@ -256,6 +274,8 @@ fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
         bitsets: ctx.bitsets,
         current_bitset: None,
         runs_in_packet: false,
+        container: c.name().clone(),
+        errors: Vec::new(),
     };
 
     let mut inline = false;
@@ -271,7 +291,9 @@ fn flatten_complex(c: &ast::ComplexType, ctx: &mut Context) {
     };
     ctx2.stop_bits();
     let bitsets = ctx2.bitsets;
+    let errors = ::std::mem::take(&mut ctx2.errors);
     ctx.bitsets = bitsets;
+    ctx.errors.extend(errors);
     let cot = flat_ast::ComplexType::new(c.name().clone(), content, c.doc().clone(), false, inline);
     ctx.add_content(flat_ast::PacketContent::Complex(cot));
 }
@@ -376,6 +398,9 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
         ast::SequenceContent::Element(ref element) => {
             return flatten_element(element, ctx, id);
         },
+        ast::SequenceContent::Choice(ref choice) if choice.selector().is_some() => {
+            return flatten_selected(choice, ctx, id);
+        },
         ast::SequenceContent::Choice(ref choice) => {
             ctx.path.push("Choice".to_string());
             let choice = flatten_choice(choice, ctx);
@@ -405,6 +430,73 @@ fn flatten_seq_content(c: &ast::SequenceContent, ctx: &mut Context, id: u32) -> 
     ctx.add_content(flat_ast::PacketContent::Complex(complex));
     flat_ast::Element::new(name.clone(), name.clone(), id,
         flat_ast::ElementInitValue::None, occurs, size_occurs, doc, true, true, None, None, None)
+}
+
+/// The name of the class a packet is generated as.
+fn p_class_name(p: &ast::Packet) -> String {
+    flat_ast::Packet::new(p.type_().clone(), None).class_name().clone()
+}
+
+/// Flattens a `<choice selector="...">` into the element standing for it,
+/// whose type, added to the packet, holds the branches. Whether the selector
+/// and the cases make sense is checked once the packet is complete (see
+/// `selected::check`).
+fn flatten_selected(choice: &ast::Choice, ctx: &mut Context, id: u32) -> flat_ast::Element {
+    use heck::ToUpperCamelCase;
+    ctx.stop_bits();
+    let container = ctx.container.clone();
+    if choice.occurs().is_some() || choice.size_occurs().is_some() {
+        ctx.errors.push(format!("{}: a selector choice cannot have occurs", container));
+    }
+    let name = choice.name().clone().unwrap_or_else(|| "body".to_owned());
+    let type_name = format!("{}{}", container, name.to_upper_camel_case());
+    let mut selected = flat_ast::Selected::new(choice.selector().clone().unwrap_or_default(), choice.doc().clone());
+    let mut next_id = 0;
+    for content in choice.contents() {
+        let seq = match content {
+            ast::SequenceContent::Seq(ref seq) => seq,
+            _ => {
+                ctx.errors.push(format!("{}: a selector choice holds <sequence> branches only", container));
+                continue;
+            }
+        };
+        let value = match (seq.case(), seq.default()) {
+            (Some(value), false) => Some(value.trim().to_owned()),
+            (None, true) => None,
+            _ => {
+                ctx.errors.push(format!(
+                    "{}: a branch of a selector choice needs either case=\"...\" or default=\"true\"",
+                    container
+                ));
+                continue;
+            }
+        };
+        if seq.occurs().is_some() || seq.size_occurs().is_some() || seq.inline() {
+            ctx.errors.push(format!("{}: a branch of a selector choice cannot have occurs or inline", container));
+        }
+        let mut case = flat_ast::Case::new(value, seq.doc().clone());
+        for content in seq.contents() {
+            match content {
+                ast::SequenceContent::Element(ref elem) if elem.bits().is_some() => {
+                    ctx.errors.push(format!("{}: bit fields are not supported in a branch of a selector choice", container));
+                },
+                ast::SequenceContent::Element(ref elem) => {
+                    case.add_element(flatten_element(elem, ctx, next_id));
+                    next_id += 1;
+                },
+                _ => ctx.errors.push(format!("{}: a branch of a selector choice holds elements only", container))
+            }
+        }
+        selected.add_case(case);
+    }
+    if ctx.complex_types.contains(&type_name) {
+        ctx.errors.push(format!("{}: the type of choice {} would be {}, which is already a type; name the choice", container, name, type_name));
+    }
+    let doc = choice.doc().clone();
+    let complex = flat_ast::ComplexType::new(type_name.clone(), flat_ast::ComplexTypeContent::Selected(selected), doc.clone(), false, false);
+    ctx.add_content(flat_ast::PacketContent::Complex(complex));
+    flat_ast::Element::new(name, type_name, id, flat_ast::ElementInitValue::None, None, None, doc,
+        false, false, None, None, None)
 }
 
 fn flatten_element(elem: &ast::Element, ctx: &mut Context, id: u32) -> flat_ast::Element {

@@ -68,7 +68,109 @@ pub struct ComplexType {
 pub enum ComplexTypeContent {
     Seq(Sequence),
     Choice(Choice),
+    /// A `<choice selector="...">`: exactly one of its branches is there,
+    /// the one the selector's value picks.
+    Selected(Selected),
     Empty
+}
+
+/// A choice whose branch is picked by the value of an earlier element of the
+/// same packet or sequence, the selector. The element standing for the
+/// choice has this as its type.
+#[derive(Debug, Clone)]
+pub struct Selected {
+    selector: String,
+    selector_type: String,
+    cases: Vec<Case>,
+    doc: Option<String>
+}
+
+/// One branch of a [`Selected`].
+#[derive(Debug, Clone)]
+pub struct Case {
+    value: Option<String>,
+    elements: Vec<Element>,
+    doc: Option<String>
+}
+
+impl Selected {
+    pub fn new(selector: String, doc: Option<String>) -> Self {
+        Selected { selector, selector_type: String::new(), cases: Vec::new(), doc }
+    }
+
+    /// The name of the selector element.
+    pub fn selector(&self) -> &String {
+        &self.selector
+    }
+
+    /// The type of the selector element, as the XML writes it. Known once
+    /// the graph passes have checked the choice.
+    pub fn selector_type(&self) -> &String {
+        &self.selector_type
+    }
+
+    pub fn set_selector_type(&mut self, type_: String) {
+        self.selector_type = type_;
+    }
+
+    pub fn cases(&self) -> &[Case] {
+        &self.cases
+    }
+
+    pub fn cases_mut(&mut self) -> &mut [Case] {
+        &mut self.cases
+    }
+
+    pub fn add_case(&mut self, case: Case) {
+        self.cases.push(case);
+    }
+
+    #[allow(dead_code)]
+    pub fn doc(&self) -> &Option<String> {
+        &self.doc
+    }
+
+    /// The elements of all branches, each name once (a name means the same
+    /// element in every branch that has it), in the order they first come.
+    pub fn members(&self) -> Vec<&Element> {
+        let mut out: Vec<&Element> = Vec::new();
+        for case in &self.cases {
+            for elem in case.elements() {
+                if !out.iter().any(|e| e.name() == elem.name()) {
+                    out.push(elem);
+                }
+            }
+        }
+        out
+    }
+}
+
+impl Case {
+    pub fn new(value: Option<String>, doc: Option<String>) -> Self {
+        Case { value, elements: Vec::new(), doc }
+    }
+
+    /// The selector's value this branch is for, as the XML writes it (an
+    /// enumerator or an integer); `None` for the default branch.
+    pub fn value(&self) -> &Option<String> {
+        &self.value
+    }
+
+    pub fn elements(&self) -> &[Element] {
+        &self.elements
+    }
+
+    pub fn elements_mut(&mut self) -> &mut Vec<Element> {
+        &mut self.elements
+    }
+
+    pub fn add_element(&mut self, element: Element) {
+        self.elements.push(element);
+    }
+
+    pub fn doc(&self) -> &Option<String> {
+        &self.doc
+    }
 }
 
 use heck::ToUpperCamelCase;
