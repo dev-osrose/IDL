@@ -346,21 +346,6 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
         }
     });
 
-    // The selectors of the selector choices of each sequence: the C++
-    // backend reads and writes them like elements of a packet.
-    let mut seq_selectors = ::std::collections::HashMap::<String, HashSet<String>>::new();
-    for content in packet.contents() {
-        if let PacketContent::Complex(c) = content {
-            if let ComplexTypeContent::Seq(s) = c.content() {
-                for elem in s.elements() {
-                    if let Some(selected) = ::selected::selected_type(&packet, elem.type_()) {
-                        seq_selectors.entry(c.name().clone()).or_default().insert(selected.selector().clone());
-                    }
-                }
-            }
-        }
-    }
-
     for content in packet.contents_mut() {
         match content {
             PacketContent::Complex(ref mut c) => {
@@ -415,9 +400,10 @@ pub fn run(mut packet: Packet) -> Result<Packet, ::failure::Error> {
                                 if graph.nodes[node.0].is_defined {
                                     elem.set_is_defined();
                                 }
-                            }
-                            if seq_selectors.get(&name).map_or(false, |s| s.contains(elem.name())) {
-                                mark_element(elem, &graph, &enums);
+                                // Read, written and sized as its base, as in a packet.
+                                if graph.nodes[node.0].type_ == TyEnum {
+                                    elem.set_enum_type(graph.nodes[node.0].type_name.clone());
+                                }
                             }
                         }
                     },
