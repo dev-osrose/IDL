@@ -369,7 +369,7 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
                         if elem.type_() == "std::string" || ::selected::selected_type(packet, elem.type_()).is_some() {
                             continue;
                         }
-                        // Only selectors have an enum_type here: their size is that of the enumeration.
+                        // An enumeration is the size of its base.
                         let rhs = if iserialize.contains(&elem.type_().to_owned().to_upper_camel_case()) && elem.enum_type().is_none() {
                             format!("{}::size()", elem.type_())
                         } else {
@@ -925,13 +925,13 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
         cg!(self, "bool {}::write(CRoseBasePolicy& writer) const {{", class_name);
         self.indent();
-        let selectors = selectors(whole, packet);
         for elem in packet.elements() {
             if let Some(selected) = ::selected::selected_type(whole, elem.type_()) {
                 self.switch(whole, selected, "return false;", &mut |this, elem| this.pack_element(elem, whole, iserialize))?;
                 continue;
             }
-            if selectors.contains(&elem.name()) {
+            // An enumeration, as its base integer.
+            if elem.enum_type().is_some() && elem.occurs().is_none() {
                 self.pack_element(elem, whole, iserialize)?;
                 continue;
             }
@@ -1004,14 +1004,14 @@ impl<'a, W: Write> CodeSourceGenerator<'a, W> {
         }
         cg!(self, "bool {}::read(CRoseReader& reader) {{", class_name);
         self.indent();
-        let selectors = selectors(whole, packet);
         for elem in packet.elements() {
             let class = whole.class_name();
             if let Some(selected) = ::selected::selected_type(whole, elem.type_()) {
                 self.switch(whole, selected, "return false;", &mut |this, elem| this.read_element(elem, class, iserialize, "return false;"))?;
                 continue;
             }
-            if selectors.contains(&elem.name()) {
+            // An enumeration, through its base integer.
+            if elem.enum_type().is_some() && elem.occurs().is_none() {
                 self.read_element(elem, class, iserialize, "return false;")?;
                 continue;
             }
@@ -1326,11 +1326,6 @@ fn clean_base(base: &str) -> String {
     } else {
         base.to_string()
     }
-}
-
-/// The names of the selectors of the selector choices of `seq`.
-fn selectors<'p>(packet: &'p Packet, seq: &Sequence) -> Vec<&'p String> {
-    seq.elements().iter().filter_map(|e| ::selected::selected_type(packet, e.type_()).map(|s| s.selector())).collect()
 }
 
 fn other(message: String) -> ::std::io::Error {

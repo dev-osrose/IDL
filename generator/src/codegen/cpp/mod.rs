@@ -175,6 +175,43 @@ mod tests {
     }
 
     #[test]
+    fn an_enum_in_a_type_is_read_written_and_sized_as_its_base() {
+        let xml = r#"<packet ePacketType = "PAKWC_CLAN">
+            <simpleType name = "ClanRank">
+                <restriction base = "uint8_t">
+                    <enumeration value = "PENALTY" id = "0" />
+                    <enumeration value = "MASTER" />
+                </restriction>
+            </simpleType>
+            <complexType name = "ClanId">
+                <sequence>
+                    <element name = "id" type = "uint32_t" />
+                    <element name = "rank" type = "ClanRank" />
+                </sequence>
+            </complexType>
+            <element name = "clan" type = "ClanId" />
+        </packet>"#;
+        let source = call_source(xml);
+        let wanted = [
+            "bool SrvClan::ClanId::write(CRoseBasePolicy& writer) const {",
+            "if (!writer.set_uint8_t(rank)) {",
+            "bool SrvClan::ClanId::read(CRoseReader& reader) {",
+            "uint8_t rank_temp;",
+            "if (!reader.get_uint8_t(rank_temp)) {",
+            "return false;",
+            "rank = static_cast<ClanRank>(rank_temp);",
+            "constexpr size_t SrvClan::ClanId::size() {",
+            "size += sizeof(ClanRank); // rank",
+        ];
+        let mut rest = source.as_str();
+        for needle in wanted {
+            let at = rest.find(needle).unwrap_or_else(|| panic!("{:?} not found in order in:\n{}", needle, source));
+            rest = &rest[at + needle.len()..];
+        }
+        assert!(!source.contains("iserialize(rank)"), "{}", source);
+    }
+
+    #[test]
     fn empty_packet() {
         let packet = Packet::new("PAKCS_PACKET".to_owned(), None);
         let result = call_header(&packet);
